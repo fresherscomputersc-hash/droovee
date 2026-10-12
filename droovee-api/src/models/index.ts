@@ -13,6 +13,11 @@ const customerSchema = new Schema(
     passwordHash: { type: String, select: false },
     phoneVerified: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
+    /** Password-reset token (HMAC hash, never plaintext) + expiry. */
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetExpiresAt: { type: Date },
+    /** Referral code (shown in account, shared with friends). */
+    referralCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     /** Bumped on disable/role/password changes: outstanding access tokens carry the old version and stop working. */
     tokenVersion: { type: Number, default: 0 },
   },
@@ -25,7 +30,7 @@ export const CustomerModel = model("Customer", customerSchema);
 const otpSchema = new Schema(
   {
     phone: { type: String, required: true, index: true },
-    purpose: { type: String, enum: ["login", "register", "verify_phone"], required: true },
+    purpose: { type: String, enum: ["login", "register", "verify_phone", "guest_booking"], required: true },
     codeHash: { type: String, required: true, select: false },
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
@@ -82,6 +87,22 @@ const driverSchema = new Schema(
      * for the same driver conflict on this document, so one of them aborts (409).
      */
     assignmentVersion: { type: Number, default: 0 },
+    // Phase 3: driver profile card
+    photoUrl: { type: String },
+    experienceYears: { type: Number, min: 0, max: 60 },
+    languages: [{ type: String, enum: ["odia", "hindi", "english"] }],
+    // Phase 5: hiring checklist (ID, licence, police verification, test drive, references, conduct)
+    hiring: {
+      idProof: { done: { type: Boolean, default: false }, at: Date },
+      licence: { done: { type: Boolean, default: false }, at: Date },
+      policeVerification: { done: { type: Boolean, default: false }, at: Date },
+      testDrive: { done: { type: Boolean, default: false }, at: Date },
+      references: { done: { type: Boolean, default: false }, at: Date },
+      codeOfConduct: { done: { type: Boolean, default: false }, at: Date },
+    },
+    // Phase 5: training record + uniform
+    trainings: [{ topic: String, trainer: String, trainedAt: Date, _id: false }],
+    uniform: { issued: { type: Boolean, default: false }, size: String, issuedAt: Date },
   },
   opts,
 );
@@ -111,6 +132,9 @@ const bookingSchema = new Schema(
       name: { type: String, required: true },
       phone: { type: String, required: true },
     },
+    // Phase 4: fixed-price package + referral
+    packageId: { type: String },
+    referralCode: { type: String, uppercase: true, trim: true },
     serviceType: {
       type: String,
       required: true,
@@ -122,6 +146,7 @@ const bookingSchema = new Schema(
         "outstation_one_way",
         "outstation_round_trip",
         "airport_pickup_drop",
+        "sober_driver",
       ],
     },
     immediate: { type: Boolean, default: false },
@@ -143,6 +168,29 @@ const bookingSchema = new Schema(
     carModel: { type: String, required: true, maxlength: 80 },
     transmission: { type: String, enum: ["manual", "automatic"], required: true },
     instructions: { type: String, maxlength: 1000, default: "" },
+    // Fast Booking (guest) extras — PDF Phase 1 §3.1
+    isGuest: { type: Boolean, default: false },    guestWhatsapp: { type: String },
+    guestEmail: { type: String, lowercase: true, trim: true },
+    landmark: { type: String, maxlength: 300 },
+    carNumber: { type: String, maxlength: 20 },
+    altContact: { type: String, maxlength: 20 },
+    driverLanguage: { type: String, enum: ["odia", "hindi", "english"], },
+    paymentPreference: { type: String, enum: ["online", "cash_upi"] },
+    agreedToTerms: { type: Boolean },
+    source: { type: String, enum: ["website", "call", "whatsapp", "app"], default: "website" },
+    // Phase 3: trust + driver flow
+    /** Unguessable driver link token + family share token, issued at assignment. */
+    driverTokenHash: { type: String, select: false },
+    shareToken: { type: String, index: true, sparse: true, unique: true },
+    /** 4-digit codes: customer shares with driver to start/end the trip. */
+    tripCodeStartHash: { type: String, select: false },
+    tripCodeEndHash: { type: String, select: false },
+    /** Pre-trip car photos (dispute protection). */
+    carPhotos: [{ url: String, takenAt: Date, _id: false }],
+    /** Driver marked trip ended; admin completes with final fare. */
+    tripEndedByDriverAt: { type: Date },
+    /** Driver marked arrived at pickup. */
+    driverArrivedAt: { type: Date },
     status: { type: String, enum: BOOKING_STATUSES, default: "requested", index: true },
     driverId: { type: Schema.Types.ObjectId, ref: "Driver", index: true },
     couponCode: { type: String, uppercase: true, trim: true },
@@ -311,6 +359,64 @@ const ticketSchema = new Schema(
   opts,
 );
 export const TicketModel = model("Ticket", ticketSchema);
+
+// ---------- Business profile (Phase 5: insurance shown on site, edited by owner) ----------
+const businessSchema = new Schema(
+  {
+    name: { type: String, default: "Droovee" },
+    address: { type: String, default: "Bhubaneswar, Odisha" },
+    insuranceProvider: { type: String, default: "" },
+    insurancePolicyNumber: { type: String, default: "" },
+    insuranceValidTill: { type: Date },
+    insuranceCoverageNote: { type: String, default: "", maxlength: 500 },
+    supportReplyTarget: { type: String, default: "We reply within 2 hours (8am–10pm)." },
+    updatedBy: Schema.Types.ObjectId,
+  },
+  opts,
+);
+export const BusinessModel = model("Business", businessSchema);
+
+// ---------- Ratings (one per booking, after completion) ----------
+const ratingSchema = new Schema(
+  {
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking", required: true, unique: true, index: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
+    driverId: { type: Schema.Types.ObjectId, ref: "Driver", required: true, index: true },
+    stars: { type: Number, required: true, min: 1, max: 5 },
+    review: { type: String, trim: true, maxlength: 1000 },
+  },
+  opts,
+);
+export const RatingModel = model("Rating", ratingSchema);
+
+// ---------- Referrals (Phase 4: code shared with friends, credit earned on completion) ----------
+const referralSchema = new Schema(
+  {
+    code: { type: String, required: true, uppercase: true, trim: true, index: true },
+    referrerCustomerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
+    referredCustomerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true },
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking", required: true },
+    /** recorded → the friend booked; earned → their trip completed (₹100 credit, redeemed via Coupons). */
+    status: { type: String, enum: ["recorded", "earned", "rewarded"], default: "recorded", index: true },
+  },
+  opts,
+);
+export const ReferralModel = model("Referral", referralSchema);
+
+// ---------- Notification log (auto customer messages: email now, WhatsApp/SMS when provider added) ----------
+const notificationSchema = new Schema(
+  {
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking", required: true, index: true },
+    event: { type: String, enum: ["received", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed", "cancelled", "reminder"], required: true },
+    channel: { type: String, enum: ["email", "whatsapp", "sms"], required: true },
+    to: { type: String, required: true },
+    sent: { type: Boolean, default: false },
+    error: { type: String },
+  },
+  { timestamps: { createdAt: true, updatedAt: false }, versionKey: false },
+);
+notificationSchema.index({ bookingId: 1, event: 1, channel: 1 });
+export const NotificationModel = model("Notification", notificationSchema);
 
 // ---------- Audit log (append-only at application level) ----------
 const auditSchema = new Schema(

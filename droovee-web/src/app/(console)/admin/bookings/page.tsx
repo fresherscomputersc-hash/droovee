@@ -19,10 +19,11 @@ export default function AdminBookingsPage() {
   const LIMIT = 50;
   const [error, setError] = useState<string | null>(null);
 
-  async function search(p = 1) {
+  async function search(p = 1, statusOverride?: string) {
     setError(null);
+    const st = statusOverride ?? status;
     const q = new URLSearchParams({ limit: String(LIMIT), page: String(p) });
-    if (status) q.set("status", status);
+    if (st) q.set("status", st);
     if (bookingNumber.trim()) q.set("bookingNumber", bookingNumber.trim());
     if (phone.trim()) q.set("customerPhone", phone.trim());
     if (from) q.set("from", new Date(`${from}T00:00:00+05:30`).toISOString());
@@ -44,7 +45,22 @@ export default function AdminBookingsPage() {
 
   return (
     <>
-      <PageTitle title="Bookings" subtitle="Search, filter and open any booking to assign a driver or update its status." />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <PageTitle title="Bookings" subtitle="Search, filter and open any booking to assign a driver or update its status." />
+        <Link href="/admin/bookings/new" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">+ Create booking</Link>
+      </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {["", "requested", "confirmed", "driver_assigned", "in_progress", "completed", "cancelled"].map((s) => (
+          <button
+            key={s || "all"}
+            type="button"
+            onClick={() => { setStatus(s); search(1, s); }}
+            className={`rounded-full px-3 py-1 text-xs ring-1 ${status === s ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
+          >
+            {s === "" ? "All" : STATUS_LABEL[s]}
+          </button>
+        ))}
+      </div>
       <form
         className="mb-6 grid gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:grid-cols-6"
         onSubmit={(e) => {

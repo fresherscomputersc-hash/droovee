@@ -15,6 +15,10 @@ const NAV: { href: string; label: string; perm?: string }[] = [
   { href: "/admin/customers", label: "Customers", perm: "customers:read" },
   { href: "/admin/payments", label: "Payments & reports", perm: "reports:read" },
   { href: "/admin/coupons", label: "Coupons", perm: "bookings:read" },
+  { href: "/admin/referrals", label: "Referrals", perm: "bookings:read" },
+  { href: "/admin/reports", label: "Reports", perm: "reports:read" },
+  { href: "/admin/feedback", label: "Feedback", perm: "bookings:read" },
+  { href: "/admin/business", label: "Business", perm: "pricing:write" },
   { href: "/admin/tickets", label: "Support tickets", perm: "tickets:read" },
   { href: "/admin/pricing", label: "Pricing & settings", perm: "pricing:write" },
   { href: "/admin/staff", label: "Staff & roles", perm: "staff:manage" },
@@ -31,6 +35,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [session, setS] = useState<Session | null | undefined>(undefined);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const s = getSession();
@@ -58,15 +63,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <p className="text-base font-semibold text-white">Droovee Admin</p>
             <p className="text-xs text-slate-400">{ROLE_LABEL[session.role ?? ""] ?? session.role}</p>
           </div>
-          <button onClick={signOut} className="text-xs text-slate-400 hover:text-white md:mt-3">Sign out</button>
+          <div className="flex items-center gap-3">
+            <button onClick={signOut} className="text-xs text-slate-400 hover:text-white md:mt-3">Sign out</button>
+            <button onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu" className="grid h-9 w-9 place-items-center rounded-lg text-slate-200 hover:bg-slate-800 md:hidden">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" /></svg>
+            </button>
+          </div>
         </div>
-        <nav className="flex flex-row gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:gap-0.5 md:overflow-visible md:px-3">
+        <nav className={`${menuOpen ? "flex" : "hidden"} flex-col gap-0.5 px-3 pb-3 md:flex md:flex-col md:overflow-visible`}>
           {NAV.filter((n) => !n.perm || can(session.role, n.perm)).map((n) => {
             const active = n.href === "/admin" ? pathname === "/admin" : pathname.startsWith(n.href);
             return (
               <Link
                 key={n.href}
                 href={n.href}
+                onClick={() => setMenuOpen(false)}
                 className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm ${active ? "bg-slate-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
               >
                 {n.label}

@@ -60,6 +60,29 @@ export const config = {
   get otpEnabled(): boolean {
     return process.env.OTP_ENABLED === "true";
   },
+  /** Outgoing email (booking confirmations, password resets). Unset = skip sending, booking still succeeds. */
+  get smtpHost(): string {
+    return process.env.SMTP_HOST ?? "";
+  },
+  get smtpPort(): number {
+    return num("SMTP_PORT", 587);
+  },
+  get smtpUser(): string {
+    return process.env.SMTP_USER ?? "";
+  },
+  get smtpPass(): string {
+    return process.env.SMTP_PASS ?? "";
+  },
+  get smtpFrom(): string {
+    return process.env.SMTP_FROM ?? "Droovee <no-reply@droovee.in>";
+  },
+  get smtpConfigured(): boolean {
+    return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";
+  },
+  /** Public web URL, used to build password-reset links in emails. */
+  get webUrl(): string {
+    return (process.env.WEB_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  },
   /** Customer-facing service timezone (used for display and late-night window). */
   utcOffsetMinutes: 330, // Asia/Kolkata (IST, no DST)
 };

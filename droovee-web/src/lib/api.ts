@@ -35,23 +35,37 @@ async function raw(path: string, init: RequestInit & { token?: string | null }) 
 /**
  * Silent refresh using the httpOnly refresh cookie. Returns true and stores
  * the new access token in memory, or false when the session is gone.
+ *
+ * Single-flight: page loads fire several API calls at once; without this,
+ * each one would rotate the refresh token concurrently and all but one would
+ * look like token theft (forcing a logout on every refresh). Concurrent
+ * callers share the one in-flight rotation.
  */
+let refreshPromise: Promise<boolean> | null = null;
+
 async function refreshViaCookie(): Promise<boolean> {
-  try {
-    const r = await fetch(BASE + "/auth/refresh", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: "{}",
-    });
-    if (!r.ok) return false;
-    const t = await r.json();
-    if (!t?.accessToken) return false;
-    memAccess = t.accessToken;
-    return true;
-  } catch {
-    return false;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const r = await fetch(BASE + "/auth/refresh", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: "{}",
+        });
+        if (!r.ok) return false;
+        const t = await r.json();
+        if (!t?.accessToken) return false;
+        memAccess = t.accessToken;
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
   }
+  return refreshPromise;
 }
 
 function signOut() {

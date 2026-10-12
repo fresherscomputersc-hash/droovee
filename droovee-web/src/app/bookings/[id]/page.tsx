@@ -7,6 +7,8 @@ import { Alert, Button, Card, Field, StatusBadge, Textarea } from "@/components/
 import { api, ApiError } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { dateTime, money, SERVICE_LABEL, STATUS_LABEL } from "@/lib/format";
+import { DriverCard, EmergencyCard, HelpOnWhatsApp } from "@/components/Trust";
+import { RateTrip, ShareLink } from "@/components/Rate";
 
 const PIPELINE = ["requested", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed"] as const;
 const DEAD_END = ["cancelled", "rejected", "customer_no_show"];
@@ -155,29 +157,29 @@ export default function CustomerBookingPage() {
           </dl>
         </Card>
 
-        <Card>
-          <h2 className="font-semibold">Driver</h2>
-          {b.driver ? (
-            <div className="mt-4">
-              <dl className="grid gap-3 text-sm md:grid-cols-2">
-                <Row k="Name" v={b.driver.name} />
-                <Row k="Phone" v={b.driver.phone} />
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <a href={`tel:${b.driver.phone}`} className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                  Call driver
-                </a>
-                {waNumber && (
-                  <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">
-                    WhatsApp driver
-                  </a>
-                )}
-              </div>
-            </div>
-          ) : (
+        {b.driver ? (
+          <DriverCard driver={b.driver} />
+        ) : (
+          <Card>
+            <h2 className="font-semibold">Driver</h2>
             <p className="mt-3 text-sm text-slate-600">A driver will be assigned after our team confirms your booking. You'll see their details here.</p>
-          )}
-        </Card>
+          </Card>
+        )}
+
+        {b.shareToken && (
+          <Card>
+            <h2 className="font-semibold">Share this trip with family</h2>
+            <p className="mt-1 text-sm text-slate-600">They see the driver name and live status — no login needed.</p>
+            <ShareLink token={b.shareToken} />
+          </Card>
+        )}
+
+        {b.status === "completed" && (
+          <RateTrip bookingId={params.id} />
+        )}
+
+        <EmergencyCard bookingNumber={b.bookingNumber} />
+        <HelpOnWhatsApp bookingNumber={b.bookingNumber} />
 
         <Card>
           <h2 className="font-semibold">Fare</h2>

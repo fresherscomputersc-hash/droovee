@@ -30,6 +30,7 @@ export default function AdminBookingDetail() {
   const [b, setB] = useState<any | null>(null);
   const [options, setOptions] = useState<any[] | null>(null);
   const [payments, setPayments] = useState<any[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,7 +50,13 @@ export default function AdminBookingDetail() {
 
   // Contact, fare, payment
   const [channel, setChannel] = useState<"call" | "whatsapp">("call");
-  const [result, setResult] = useState<"not_contacted" | "contacted" | "confirmed" | "declined" | "unreachable">("contacted");
+  // Driver link + trip codes (Phase 3)
+  const [links, setLinks] = useState<{ driverToken?: string; shareToken?: string; tripCodeStart?: string; tripCodeEnd?: string } | null>(null);
+
+  async function issueLinks() {
+    const ok = await run(() => api(`/admin/bookings/${id}/driver-link`, { method: "POST", body: {} }).then((r: any) => setLinks(r)), "Driver link issued. Share it with the driver, codes with the customer.");
+    if (!ok) setLinks(null);
+  }  const [result, setResult] = useState<"not_contacted" | "contacted" | "confirmed" | "declined" | "unreachable">("contacted");
   const [contactNotes, setContactNotes] = useState("");
   const [newFare, setNewFare] = useState("");
   const [fareReason, setFareReason] = useState("");
@@ -58,9 +65,14 @@ export default function AdminBookingDetail() {
 
   const load = useCallback(async () => {
     try {
-      const [bk, pay] = await Promise.all([api(`/admin/bookings/${id}`), api<{ items: any[] }>(`/admin/bookings/${id}/payments`).catch(() => ({ items: [] }))]);
+      const [bk, pay, msg] = await Promise.all([
+        api(`/admin/bookings/${id}`),
+        api<{ items: any[] }>(`/admin/bookings/${id}/payments`).catch(() => ({ items: [] })),
+        api<{ items: any[] }>(`/admin/bookings/${id}/notifications`).catch(() => ({ items: [] })),
+      ]);
       setB(bk);
       setPayments(pay.items);
+      setMessages(msg.items);
       if (can(role, "drivers:read")) {
         const d = await api<{ items: any[] }>(`/admin/bookings/${id}/driver-options`).catch(() => null);
         setOptions(d?.items ?? null);
@@ -109,7 +121,10 @@ export default function AdminBookingDetail() {
     setBusy(true);
     setError(null);
     try {
-      await api(`/admin/bookings/${id}/${path}`, { method: "PATCH", body });
+      const r: any = await api(`/admin/bookings/${id}/${path}`, { method: "PATCH", body });
+      if (r?.driverToken) {
+        setLinks({ driverToken: r.driverToken, shareToken: r.shareToken, tripCodeStart: r.tripCodeStart, tripCodeEnd: r.tripCodeEnd });
+      }
       setNotice(alreadyAssigned ? "Driver reassigned." : "Driver assigned. Now record the driver's confirmation.");
       setOverrideReason("");
       setReassignReason("");
@@ -167,6 +182,17 @@ export default function AdminBookingDetail() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <h2 className="font-semibold">Customer & trip</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a href={`tel:${b.customer?.phone}`} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">📞 Call customer</a>
+              <a href={`https://wa.me/${String(b.customer?.phone ?? "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium ring-1 ring-slate-300 hover:bg-slate-50">💬 WhatsApp customer</a>
+              {b.driver?.phone && (
+                <>
+                  <a href={`tel:${b.driver.phone}`} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">📞 Call driver</a>
+                  <a href={`https://wa.me/${String(b.driver.phone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium ring-1 ring-slate-300 hover:bg-slate-50">💬 WhatsApp driver</a>
+                </>
+              )}
+              <Link href={`/admin/bookings/${id}/receipt`} className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 ring-1 ring-slate-300 hover:bg-slate-50">🧾 Receipt / invoice</Link>
+            </div>
             <dl className="mt-4 grid gap-4 text-sm md:grid-cols-2">
               <Info k="Customer" v={`${b.customer?.name} · ${b.customer?.phone}`} />
               <Info k="Car" v={`${b.carModel} · ${b.transmission}`} />
@@ -255,10 +281,27 @@ export default function AdminBookingDetail() {
             )}
           </Card>
 
+          {b.driverId && can(role, "bookings:assign") && (
+            <Card>
+              <h2 className="font-semibold">Driver link & trip codes</h2>
+              <p className="mt-1 text-xs text-slate-500">Driver opens the link (no app). Codes go to the customer — they read them to the driver to start/end.</p>
+              <div className="mt-3">
+                <Button variant="secondary" onClick={issueLinks} disabled={busy}>Issue driver link + codes</Button>
+              </div>
+              {links && (
+                <dl className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 font-mono text-xs">
+                  <div className="flex flex-wrap justify-between gap-2"><dt className="font-sans text-slate-500">Driver link (WhatsApp to driver)</dt><dd className="break-all">{typeof window !== "undefined" ? `${window.location.origin}/d/${links.driverToken}` : `/d/${links.driverToken}`}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="font-sans text-slate-500">START code</dt><dd className="text-base font-bold">{links.tripCodeStart}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="font-sans text-slate-500">END code</dt><dd className="text-base font-bold">{links.tripCodeEnd}</dd></div>
+                  <div className="flex flex-wrap justify-between gap-2"><dt className="font-sans text-slate-500">Family share link</dt><dd className="break-all">{typeof window !== "undefined" ? `${window.location.origin}/share/${links.shareToken}` : `/share/${links.shareToken}`}</dd></div>
+                </dl>
+              )}
+            </Card>
+          )}
+
           {can(role, "bookings:status") && (
             <Card>
-              <h2 className="font-semibold">Contact log & driver confirmation</h2>
-              {!b.driverId ? (
+              <h2 className="font-semibold">Contact log & driver confirmation</h2>              {!b.driverId ? (
                 <p className="mt-2 text-sm text-slate-600">Assign a driver before logging contact.</p>
               ) : (
                 <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={async (e) => {
@@ -388,6 +431,20 @@ export default function AdminBookingDetail() {
                 <Field label="Reference / notes"><Input value={cashRef} onChange={(e) => setCashRef(e.target.value)} /></Field>
                 <Button type="submit" variant="secondary" disabled={busy || !cashAmount}>Record cash receipt</Button>
               </form>
+            )}
+          </Card>
+
+          <Card>
+            <h2 className="font-semibold">Customer messages</h2>
+            <p className="mt-1 text-xs text-slate-500">Automatic updates (email for now; WhatsApp once connected).</p>
+            {messages.length === 0 ? <p className="mt-2 text-sm text-slate-600">No messages yet.</p> : (
+              <ul className="mt-3 space-y-2 text-sm">
+                {messages.map((m: any) => (
+                  <li key={m._id} className="rounded-lg bg-slate-50 p-3">
+                    <span className="font-medium">{m.event.replace(/_/g, " ")}</span> · {m.channel} · {m.sent ? <span className="text-emerald-700">sent</span> : <span className="text-amber-700">pending ({m.error})</span>}
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
 

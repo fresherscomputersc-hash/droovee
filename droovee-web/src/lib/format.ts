@@ -28,6 +28,7 @@ export const SERVICE_LABEL: Record<string, string> = {
   outstation_one_way: "Outstation — one way",
   outstation_round_trip: "Outstation — round trip",
   airport_pickup_drop: "Airport / railway / bus-stop pickup & drop",
+  sober_driver: "Sober driver (we drive you home)",
 };
 
 export const STATUS_LABEL: Record<string, string> = {

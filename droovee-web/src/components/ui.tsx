@@ -78,12 +78,13 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea {...rest} className={`${inputCls} ${className}`} />;
 }
 
-export function Alert({ tone = "error", children }: { tone?: "error" | "success" | "info" | "warn"; children: ReactNode }) {
+export function Alert({ tone = "error", children }: { tone?: "error" | "success" | "info" | "warn" | "danger"; children: ReactNode }) {
   const map = {
     error: "bg-rose-50 text-rose-800 ring-rose-200",
     success: "bg-emerald-50 text-emerald-800 ring-emerald-200",
     info: "bg-sky-50 text-sky-800 ring-sky-200",
     warn: "bg-amber-50 text-amber-900 ring-amber-200",
+    danger: "bg-red-600 text-white ring-red-600",
   }[tone];
   return <div role={tone === "error" ? "alert" : "status"} className={`rounded-lg p-3 text-sm ring-1 ${map}`}>{children}</div>;
 }

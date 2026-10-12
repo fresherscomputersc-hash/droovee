@@ -1,10 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { getSession } from "@/lib/session";
 import { money, SERVICE_LABEL, istInputToIso } from "@/lib/format";
 
 type Service = keyof typeof SERVICE_LABEL;
@@ -16,32 +16,63 @@ interface Estimate {
   usesUnconfirmedRules: boolean;
 }
 
-/** Default start: one hour from now, rounded up to the next whole IST hour. */
 function istDefaultStart() {
   const istNow = Date.now() + 330 * 60_000;
   const rounded = Math.ceil((istNow + 60 * 60_000) / 3_600_000) * 3_600_000;
-  // toISOString of the shifted instant renders the IST wall time.
   return new Date(rounded).toISOString().slice(0, 16);
 }
 
 export default function BookPage() {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
+  return (
+    <Suspense fallback={<PublicShell><div className="p-10 text-sm text-slate-500">Loading…</div></PublicShell>}>
+      <BookForm />
+    </Suspense>
+  );
+}
+
+function BookForm() {
+  const search = useSearchParams();
   const [service, setService] = useState<Service>("hourly");
   const [immediate, setImmediate] = useState(false);
-  /** Frozen timestamp for the live estimate while "immediate" is on (else it would drift every render). */
   const [immediateAt, setImmediateAt] = useState<string | null>(null);
   const [start, setStart] = useState(() => istDefaultStart());
   const [hours, setHours] = useState(1);
   const [end, setEnd] = useState("");
   const [nights, setNights] = useState(0);
   const [pickup, setPickup] = useState("");
+  const [landmark, setLandmark] = useState("");
   const [destination, setDestination] = useState("");
   const [carModel, setCarModel] = useState("");
+  const [carNumber, setCarNumber] = useState("");
   const [transmission, setTransmission] = useState<"manual" | "automatic">("manual");
   const [instructions, setInstructions] = useState("");
-  const [coupon, setCoupon] = useState("");
-  // Monthly recurrence
+  const [coupon, setCoupon] = useState("LAUNCH99");
+  const [referral, setReferral] = useState("");
+  const [pkg, setPkg] = useState<any | null>(null);
+
+  // Package / service deep links (?package=id, ?service=type)
+  useEffect(() => {
+    const svc = search.get("service");
+    if (svc && svc in SERVICE_LABEL) {
+      setService(svc as Service);
+      if (svc !== "hourly") setCoupon("");
+    }
+    const pid = search.get("package");
+    if (!pid) return;
+    api<{ packages: any[] }>("/services", { auth: false })
+      .then((r) => {
+        const found = r.packages.find((x) => x.id === pid);
+        if (!found) return;
+        setPkg(found);
+        if (found.serviceType in SERVICE_LABEL) setService(found.serviceType);
+        setHours(found.durationHours);
+        setNights(found.nights ?? 0);
+        if (found.destination) setDestination(found.destination);
+        setCoupon(""); // packages have fixed fares; no coupon combo
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
@@ -49,24 +80,33 @@ export default function BookPage() {
   const [endDate, setEndDate] = useState("");
   const [returnPickup, setReturnPickup] = useState("");
 
+  // Fast-booking contact (PDF §3.1) — no sign-in required
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpNeeded, setOtpNeeded] = useState(true); // cleared automatically if the server has OTP off
+  const [whatsapp, setWhatsapp] = useState("");
+  const [sameWa, setSameWa] = useState(true);
+  const [altContact, setAltContact] = useState("");
+  const [language, setLanguage] = useState("");
+  const [payment, setPayment] = useState<"online" | "cash_upi">("cash_upi");
+  const [email, setEmail] = useState("");
+  const [agreed, setAgreed] = useState(false);
+
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [estError, setEstError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const s = getSession();
-    if (!s || s.kind !== "customer") router.replace("/login?next=/book");
-    else setReady(true);
-  }, [router]);
+  const [done, setDone] = useState<{ bookingNumber: string; id: string } | null>(null);
 
   const isFixed = service === "half_day" || service === "full_day";
   const isOutstation = service === "outstation_one_way" || service === "outstation_round_trip";
   const isMonthly = service === "monthly_office";
   const needsDestination = isOutstation || service === "airport_pickup_drop" || isMonthly;
 
-  // Effective duration sent to the API.
   const effectiveHours = useMemo(() => {
     if (service === "half_day") return 4;
     if (service === "full_day") return 8;
@@ -84,36 +124,59 @@ export default function BookPage() {
   }, [service, hours, isMonthly, startTime, endTime, isOutstation, end, start]);
 
   const effectiveStart = isMonthly && startDate ? `${startDate}T${startTime}` : start;
-  // The live estimate must price what the booking will actually use: "now"
-  // when immediate (frozen at toggle-on to avoid drifting every render).
   const estimateStart = !isMonthly && immediate && immediateAt ? immediateAt : effectiveStart;
 
-  // Live estimate, debounced.
-  useEffect(() => {
-    if (!ready) return;
-    if (!estimateStart || !(effectiveHours > 0)) {
+  async function refreshEstimate() {
+    if (pkg) {
+      setEstimate({ total: pkg.fixedPrice, lines: [{ label: `Package: ${pkg.name}`, amount: pkg.fixedPrice }], usesUnconfirmedRules: false });
+      setEstError(null);
+      return;
+    }    if (!estimateStart || !(effectiveHours > 0)) {
       setEstimate(null);
       return;
     }
-    const t = setTimeout(async () => {
-      setEstError(null);
-      try {
-        const q = new URLSearchParams({
-          serviceType: service,
-          durationHours: String(effectiveHours),
-          startAt: istInputToIso(estimateStart),
-          nights: String(isOutstation ? nights : 0),
-        });
-        if (coupon.trim()) q.set("couponCode", coupon.trim());
-        const e = await api<Estimate>(`/pricing/estimate?${q.toString()}`, { auth: false });
-        setEstimate(e);
-      } catch (err) {
-        setEstimate(null);
-        setEstError(err instanceof ApiError ? err.message : "Could not calculate the estimate.");
-      }
-    }, 350);
-    return () => clearTimeout(t);
-  }, [ready, service, effectiveHours, estimateStart, nights, coupon, isOutstation]);
+    setEstError(null);
+    try {
+      const q = new URLSearchParams({
+        serviceType: service,
+        durationHours: String(effectiveHours),
+        startAt: istInputToIso(estimateStart),
+        nights: String(isOutstation ? nights : 0),
+      });
+      if (coupon.trim()) q.set("couponCode", coupon.trim());
+      const e = await api<Estimate>(`/pricing/estimate?${q.toString()}`, { auth: false });
+      setEstimate(e);
+    } catch (err) {
+      setEstimate(null);
+      setEstError(err instanceof ApiError ? err.message : "Could not calculate the estimate.");
+    }
+  }
+
+  async function sendOtp() {
+    setError(null);
+    setNotice(null);
+    if (phone.trim().length < 10) {
+      setError("Enter your mobile number first, then tap Send code.");
+      return;
+    }
+    try {
+      const r = await api<{ debugCode?: string }>(`/auth/otp/request`, {
+        method: "POST",
+        body: { phone: phone.trim(), purpose: "guest_booking" },
+        auth: false,
+      });
+      setOtpSent(true);
+      setOtpNeeded(true);
+      if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — real SMS in production).`);
+      else setNotice("Code sent by SMS. Enter it below.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // OTP_ENABLED=false: proceed without code.
+        setOtpNeeded(false);
+        setError(null);
+      } else setError(err instanceof ApiError ? err.message : "Could not send code.");
+    }
+  }
 
   function toggleDay(d: number) {
     setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort()));
@@ -124,6 +187,10 @@ export default function BookPage() {
     setError(null);
     setFields({});
     const local: Record<string, string> = {};
+    if (name.trim().length < 2) local.name = "Enter your full name.";
+    if (phone.trim().length < 10) local.phone = "Enter a valid mobile number.";
+    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) local.email = "Enter a valid email.";
+    if (otpNeeded && !/^\d{6}$/.test(otp)) local.otp = otpSent ? "Enter the 6-digit code." : "Tap Send code first, then enter the code.";
     if (pickup.trim().length < 5) local.pickup = "Enter a pickup address (at least 5 characters).";
     if (needsDestination && destination.trim().length < 5) local.destination = "Enter the destination or office address.";
     if (carModel.trim().length < 2) local.carModel = "Enter your car model.";
@@ -132,11 +199,19 @@ export default function BookPage() {
     if (isMonthly && days.length === 0) local.days = "Choose at least one working day.";
     if (isMonthly && (!startDate || !endDate)) local.startDate = "Choose the schedule start and end dates.";
     if (!(effectiveHours > 0)) local.durationHours = "Duration must be more than zero.";
+    if (!agreed) local.agreedToTerms = "Please accept the Terms and Cancellation policy.";
     setFields(local);
     if (Object.keys(local).length) return;
 
     const startIso = immediate ? new Date().toISOString() : istInputToIso(effectiveStart);
+    const wa = sameWa ? phone.trim() : whatsapp.trim();
     const body: Record<string, unknown> = {
+      name: name.trim(),
+      phone: phone.trim(),
+      ...(otpNeeded ? { otp } : {}),
+      ...(pkg ? { packageId: pkg.id } : {}),
+      ...(coupon.trim() && !pkg ? { couponCode: coupon.trim().toUpperCase() } : {}),
+      ...(referral.trim() ? { referralCode: referral.trim().toUpperCase() } : {}),
       serviceType: service,
       immediate,
       pickup: { address: pickup.trim() },
@@ -146,10 +221,17 @@ export default function BookPage() {
       carModel: carModel.trim(),
       transmission,
       instructions: instructions.trim(),
+      paymentPreference: payment,
+      agreedToTerms: true,
+      ...(email.trim() ? { email: email.trim() } : {}),
+      ...(wa ? { whatsapp: wa } : {}),
+      ...(landmark.trim() ? { landmark: landmark.trim() } : {}),
+      ...(carNumber.trim() ? { carNumber: carNumber.trim() } : {}),
+      ...(altContact.trim() ? { altContact: altContact.trim() } : {}),
+      ...(language ? { driverLanguage: language } : {}),
     };
     if (destination.trim()) body.destination = { address: destination.trim() };
     if (isOutstation) body.scheduledEnd = istInputToIso(end);
-    if (coupon.trim()) body.couponCode = coupon.trim().toUpperCase();
     if (isMonthly) {
       body.recurrence = {
         days,
@@ -163,8 +245,9 @@ export default function BookPage() {
 
     setBusy(true);
     try {
-      const b = await api<{ id: string }>("/bookings", { method: "POST", body });
-      router.push(`/bookings/${b.id}?new=1`);
+      const b = await api<{ id: string; bookingNumber: string }>(`/bookings/guest`, { method: "POST", body, auth: false });
+      setDone({ bookingNumber: b.bookingNumber, id: b.id });
+      window.scrollTo({ top: 0 });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -175,62 +258,139 @@ export default function BookPage() {
     }
   }
 
-  if (!ready) return null;
+  if (done) {
+    return (
+      <PublicShell>
+        <div className="mx-auto max-w-2xl px-4 py-10">
+          <Card>
+            <p className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Booking received</p>
+            <h1 className="mt-3 font-mono text-3xl font-semibold">{done.bookingNumber}</h1>
+            <p className="mt-2 text-sm text-slate-600">Our team will confirm your driver shortly.</p>
+            <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Keep this booking ID for future reference — you'll need it to track your booking.</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href={`/track?bookingNumber=${encodeURIComponent(done.bookingNumber)}&phone=${encodeURIComponent(phone.trim())}`} className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700">
+                Track my booking
+              </Link>
+              <Link href="/register" className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium ring-1 ring-slate-300 hover:bg-slate-50">
+                Create an account to save details
+              </Link>
+            </div>
+            <button onClick={() => setDone(null)} className="mt-4 text-sm text-slate-500 underline">Book another</button>
+          </Card>
+        </div>
+      </PublicShell>
+    );
+  }
 
   return (
     <PublicShell>
       <div className="mx-auto max-w-6xl px-4 py-10 pb-28 lg:pb-10">
-        <h1 className="text-2xl font-semibold tracking-tight">Book a driver</h1>
-        <p className="mt-1 text-sm text-slate-600">Your own car, a professional driver. We confirm your booking and assign a driver.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Book a driver — no sign-in needed</h1>
+        <p className="mt-1 text-sm text-slate-600">Under a minute. Estimate up front, booking ID + tracking right after.</p>
+        {pkg && (
+          <p className="mt-3 inline-flex rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-200">
+            Package: <strong className="mx-1">{pkg.name}</strong> at a fixed {money(pkg.fixedPrice)} — form prefilled.
+          </p>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <form onSubmit={submit} id="book-form" className="space-y-6 lg:col-span-2" noValidate>
             {error && <Alert>{error}</Alert>}
+            {notice && <Alert tone="success">{notice}</Alert>}
 
             <Card>
-              <h2 className="font-semibold">1. Service</h2>
+              <h2 className="font-semibold">1. Your details</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Field label="Service type" error={fields.serviceType}>
-                  <Select value={service} onChange={(e) => { setService(e.target.value as Service); setHours(e.target.value === "hourly" ? 1 : hours); }}>
-                    {Object.entries(SERVICE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                <Field label="Full name *" error={fields.name}>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Priya Mohanty" invalid={!!fields.name} />
+                </Field>
+                <Field label="Mobile number *" error={fields.phone}>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" inputMode="tel" invalid={!!fields.phone} />
+                </Field>
+                <div className="md:col-span-2">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="min-w-40 flex-1">
+                      <Field label="Mobile OTP *" error={fields.otp} hint="Tap Send code, then enter the 6-digit code.">
+                        <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} />
+                      </Field>
+                    </div>
+                    <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Stops fake bookings. The code comes by SMS (demo code shown here in dev).</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input type="checkbox" checked={sameWa} onChange={(e) => setSameWa(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                  WhatsApp same as mobile
+                </label>
+                {!sameWa && (
+                  <Field label="WhatsApp number">
+                    <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="Optional" inputMode="tel" />
+                  </Field>
+                )}
+                <Field label="Alternate contact (optional)">
+                  <Input value={altContact} onChange={(e) => setAltContact(e.target.value)} placeholder="Family / office" inputMode="tel" />
+                </Field>
+                <Field label="Driver language (optional)">
+                  <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                    <option value="">No preference</option>
+                    <option value="odia">Odia</option>
+                    <option value="hindi">Hindi</option>
+                    <option value="english">English</option>
                   </Select>
                 </Field>
-                <Field label="Car transmission" error={fields.transmission}>
-                  <Select value={transmission} onChange={(e) => setTransmission(e.target.value as "manual" | "automatic")}>
-                    <option value="manual">Manual</option>
-                    <option value="automatic">Automatic</option>
+                <Field label="Payment preference *">
+                  <Select value={payment} onChange={(e) => setPayment(e.target.value as "online" | "cash_upi")}>
+                    <option value="cash_upi">Cash / UPI</option>
+                    <option value="online">Online</option>
                   </Select>
                 </Field>
-                <Field label="Car model" error={fields.carModel}>
-                  <Input value={carModel} onChange={(e) => setCarModel(e.target.value)} placeholder="e.g. Maruti Swift" invalid={!!fields.carModel} />
-                </Field>
-                <Field label="Coupon code (optional)" error={fields.couponCode}>
-                  <Input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="LAUNCH99" invalid={!!fields.couponCode} />
+                <Field label="Email (for booking confirmation)" error={fields.email} hint="Confirmation goes to this email.">
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" inputMode="email" invalid={!!fields.email} />
                 </Field>
               </div>
             </Card>
 
             <Card>
-              <h2 className="font-semibold">2. When</h2>
+              <h2 className="font-semibold">2. Service & car</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <Field label="Service type" error={fields.serviceType}>
+                  <Select value={service} onChange={(e) => setService(e.target.value as Service)}>
+                    {Object.entries(SERVICE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Car transmission">
+                  <Select value={transmission} onChange={(e) => setTransmission(e.target.value as "manual" | "automatic")}>
+                    <option value="manual">Manual</option>
+                    <option value="automatic">Automatic</option>
+                  </Select>
+                </Field>
+                <Field label="Car make & model *" error={fields.carModel}>
+                  <Input value={carModel} onChange={(e) => setCarModel(e.target.value)} placeholder="e.g. Maruti Swift" invalid={!!fields.carModel} />
+                </Field>
+                <Field label="Car number (optional)">
+                  <Input value={carNumber} onChange={(e) => setCarNumber(e.target.value.toUpperCase())} placeholder="OD 02 AB 1234" />
+                </Field>
+                <Field label="Coupon code (optional)" error={fields.couponCode}>
+                  <Input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="LAUNCH99" />
+                </Field>
+                <Field label="Referral code (optional)" error={fields.referralCode} hint="Got a friend's code? Enter it here.">
+                  <Input value={referral} onChange={(e) => setReferral(e.target.value.toUpperCase())} placeholder="DVXXXXXX" />
+                </Field>
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="font-semibold">3. When</h2>
               {!isMonthly && (
                 <label className="mt-4 flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={immediate}
-                    onChange={(e) => {
-                      setImmediate(e.target.checked);
-                      // IST wall time ("2026-…T10:05"), matching the other inputs.
-                      setImmediateAt(e.target.checked ? new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 16) : null);
-                    }}
-                    className="h-4 w-4 accent-emerald-600"
-                  />
-                  Book for now (immediate)
+                  <input type="checkbox" checked={immediate} onChange={(e) => { setImmediate(e.target.checked); setImmediateAt(e.target.checked ? new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 16) : null); }} className="h-4 w-4 accent-emerald-600" />
+                  Need a driver now
                 </label>
               )}
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 {!isMonthly && (
-                  <Field label="Start date & time (IST)" error={fields.scheduledStart}>
-                    <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} disabled={immediate} invalid={!!fields.scheduledStart} />
+                  <Field label="Start date & time (IST) *" error={fields.scheduledStart}>
+                    <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} disabled={immediate} />
                   </Field>
                 )}
                 {isFixed && (
@@ -239,14 +399,14 @@ export default function BookPage() {
                   </Field>
                 )}
                 {!isFixed && !isOutstation && !isMonthly && (
-                  <Field label="Hours" error={fields.durationHours} hint="First hour is included in the base price; extra hours at ₹89/hour.">
-                    <Input type="number" min={1} step={0.5} value={hours} onChange={(e) => setHours(Number(e.target.value))} invalid={!!fields.durationHours} />
+                  <Field label="Hours" error={fields.durationHours}>
+                    <Input type="number" min={1} step={0.5} value={hours} onChange={(e) => setHours(Number(e.target.value))} />
                   </Field>
                 )}
                 {isOutstation && (
                   <>
-                    <Field label="Return date & time (IST)" error={fields.scheduledEnd} hint={`Trip length: ${effectiveHours ? effectiveHours.toFixed(1) : 0} hours`}>
-                      <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} invalid={!!fields.scheduledEnd} />
+                    <Field label="Return date & time (IST) *" error={fields.scheduledEnd} hint={`Trip length: ${effectiveHours ? effectiveHours.toFixed(1) : 0} hours`}>
+                      <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
                     </Field>
                     {service === "outstation_round_trip" && (
                       <Field label="Night halts" hint="₹399 per night.">
@@ -258,7 +418,7 @@ export default function BookPage() {
                 {isMonthly && (
                   <>
                     <Field label="Schedule start date" error={fields.startDate}>
-                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} invalid={!!fields.startDate} />
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                     </Field>
                     <Field label="Schedule end date">
                       <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
@@ -266,24 +426,16 @@ export default function BookPage() {
                     <Field label="Daily start time">
                       <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
                     </Field>
-                    <Field label="Daily end time" hint={`${effectiveHours} hours per working day`}>
+                    <Field label="Daily end time">
                       <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                     </Field>
                     <div className="md:col-span-2">
                       <span className="mb-1 block text-sm font-medium text-slate-700">Working days</span>
                       <div className="flex flex-wrap gap-2">
                         {DAYS.map((d, i) => (
-                          <button
-                            type="button"
-                            key={d}
-                            onClick={() => toggleDay(i)}
-                            className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${days.includes(i) ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
-                          >
-                            {d}
-                          </button>
+                          <button type="button" key={d} onClick={() => toggleDay(i)} className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${days.includes(i) ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}>{d}</button>
                         ))}
                       </div>
-                      {fields.days && <p className="mt-1 text-xs text-rose-600">{fields.days}</p>}
                     </div>
                   </>
                 )}
@@ -291,16 +443,16 @@ export default function BookPage() {
             </Card>
 
             <Card>
-              <h2 className="font-semibold">3. Where</h2>
+              <h2 className="font-semibold">4. Where</h2>
               <div className="mt-4 grid gap-4">
-                <Field label={isMonthly ? "Pickup address (home)" : "Pickup address"} error={fields.pickup}>
+                <Field label="Pickup address *" error={fields.pickup}>
                   <Textarea rows={2} value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House/flat, street, locality" />
                 </Field>
+                <Field label="Landmark (optional)">
+                  <Input value={landmark} onChange={(e) => setLandmark(e.target.value)} placeholder="Near… " />
+                </Field>
                 {needsDestination && (
-                  <Field
-                    label={isMonthly ? "Office address" : service === "airport_pickup_drop" ? "Airport / railway / bus-stop and drop address" : "Destination"}
-                    error={fields.destination}
-                  >
+                  <Field label="Drop / destination address *" error={fields.destination}>
                     <Textarea rows={2} value={destination} onChange={(e) => setDestination(e.target.value)} />
                   </Field>
                 )}
@@ -309,79 +461,57 @@ export default function BookPage() {
                     <Textarea rows={2} value={returnPickup} onChange={(e) => setReturnPickup(e.target.value)} />
                   </Field>
                 )}
-                <Field label="Notes for the driver (optional)" error={fields.instructions}>
-                  <Textarea rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Landmarks, parking, what to carry…" />
+                <Field label="Special notes (optional)">
+                  <Textarea rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Parking, luggage, what to carry…" />
                 </Field>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-emerald-600" />
+                  <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="underline">Terms</a> and <a href="/cancellation" target="_blank" rel="noreferrer" className="underline">Cancellation policy</a>. *</span>
+                </label>
+                {fields.agreedToTerms && <p className="text-xs text-rose-600">{fields.agreedToTerms}</p>}
               </div>
             </Card>
 
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs text-slate-500">By booking you agree to our terms. The final fare is confirmed by our team.</p>
-              <Button type="submit" disabled={busy} className="max-lg:hidden">{busy ? "Submitting…" : "Request booking"}</Button>
+              <Button type="button" variant="secondary" onClick={refreshEstimate}>See estimate</Button>
+              <Button type="submit" disabled={busy} className="max-lg:hidden">{busy ? "Submitting…" : "Book — see estimate first"}</Button>
             </div>
-            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-600">
-              <li><span className="mr-1 text-emerald-600">✓</span>Salaried, trained drivers</li>
-              <li><span className="mr-1 text-emerald-600">✓</span>Estimate up front — no hidden charges</li>
-              <li><span className="mr-1 text-emerald-600">✓</span>Driver details shared on confirmation</li>
-            </ul>
           </form>
 
           <aside className="lg:sticky lg:top-6 lg:self-start">
             <Card>
               <h2 className="font-semibold">Estimate</h2>
-              {!isMonthly && immediate && immediateAt && (
-                <p className="mt-1 text-xs text-slate-500">Priced for right now — late-night and demand charges included.</p>
-              )}
               {estError && <p className="mt-3 text-sm text-rose-700">{estError}</p>}
-              {!estimate && !estError && <p className="mt-3 text-sm text-slate-500">Choose a service and time to see your estimate.</p>}
+              {!estimate && !estError && <p className="mt-3 text-sm text-slate-500">Press “See estimate” — clearly marked as estimate before you confirm.</p>}
               {estimate && (
                 <>
                   <p className="mt-3 text-3xl font-semibold">{money(estimate.total)}</p>
-                  <p className="text-xs text-slate-500">Estimate only. Final fare may change and is confirmed before your driver is assigned.</p>
-                  {(() => {
-                    const denom = estimate.lines.reduce((s, l) => s + Math.abs(l.amount), 0) || 1;
-                    return (
-                      <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label="Fare breakdown">
-                        {estimate.lines.map((l, i) => (
-                          <div
-                            key={i}
-                            title={`${l.label}: ${money(l.amount)}`}
-                            style={{ width: `${(Math.abs(l.amount) / denom) * 100}%` }}
-                            className={l.amount < 0 ? "bg-emerald-300" : "bg-emerald-600"}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })()}
+                  <p className="text-xs text-slate-500">Estimate only. Final fare confirmed by our team.</p>
                   <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm">
                     {estimate.lines.map((l, i) => (
                       <li key={i} className="flex justify-between gap-3">
                         <span className="text-slate-600">{l.label}</span>
-                        <span className={l.amount < 0 ? "text-emerald-700" : ""}>{money(l.amount)}</span>
+                        <span>{money(l.amount)}</span>
                       </li>
                     ))}
                   </ul>
-                  {estimate.usesUnconfirmedRules && (
-                    <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-                      Some charges for combined services are still being finalised. Our team will confirm the exact fare with you.
-                    </p>
-                  )}
                 </>
               )}
+              <div className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                <p>· Tolls, parking, fuel and the driver's food, stay and return travel are paid by you (the customer).</p>
+                <p>· Damage to your vehicle while our driver is driving is the driver's responsibility.</p>
+              </div>
             </Card>
           </aside>
         </div>
 
-        {/* Sticky mobile booking bar: total + CTA always in reach. */}
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div>
               <p className="text-xs text-slate-500">Estimated total</p>
               <p className="text-lg font-semibold leading-tight">{estimate ? money(estimate.total) : "—"}</p>
             </div>
-            <Button type="submit" form="book-form" disabled={busy} className="px-6 py-3">
-              {busy ? "Submitting…" : "Request booking"}
-            </Button>
+            <Button type="submit" form="book-form" disabled={busy} className="px-6 py-3">{busy ? "Submitting…" : "Book now"}</Button>
           </div>
         </div>
       </div>

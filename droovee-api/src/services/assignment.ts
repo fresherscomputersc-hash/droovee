@@ -1,7 +1,9 @@
 import mongoose, { Types } from "mongoose";
+import { randomBytes, randomInt } from "crypto";
 import { BookingModel, DriverModel, AvailabilityBlockModel } from "../models";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
+import { hmac } from "../lib/tokens";
 import { findConflicts, Conflict, Interval } from "../domain/availability";
 import { TERMINAL_STATUSES } from "../domain/status";
 import { getActiveSettings } from "./settings";
@@ -25,6 +27,30 @@ export interface AssignResult {
   driverId: string;
   status: string;
   warnings: Conflict[];
+  /** Plaintext driver link token + share token + trip codes — shown once to staff, hashed in DB. */
+  driverToken: string;
+  shareToken: string;
+  tripCodeStart: string;
+  tripCodeEnd: string;
+}
+
+/** Issues fresh driver-link, share and trip-code secrets (hashes stored, plaintext returned once). */
+export function issueDriverSecrets() {
+  const driverToken = randomBytes(24).toString("hex");
+  const shareToken = randomBytes(16).toString("hex");
+  const tripCodeStart = String(randomInt(1000, 10000));
+  let tripCodeEnd = String(randomInt(1000, 10000));
+  if (tripCodeEnd === tripCodeStart) tripCodeEnd = String((Number(tripCodeEnd) + 1) % 10000).padStart(4, "0");
+  return {
+    driverToken,
+    shareToken,
+    tripCodeStart,
+    tripCodeEnd,
+    driverTokenHash: hmac(`driver|${driverToken}`),
+    shareTokenHash: shareToken,
+    tripCodeStartHash: hmac(`trip-start|${tripCodeStart}`),
+    tripCodeEndHash: hmac(`trip-end|${tripCodeEnd}`),
+  };
 }
 
 /**
@@ -130,6 +156,11 @@ export async function assignDriver(input: AssignInput): Promise<AssignResult> {
         } as never);
       }
       booking.version += 1;
+      const secrets = issueDriverSecrets();
+      booking.driverTokenHash = secrets.driverTokenHash as never;
+      booking.shareToken = secrets.shareToken as never;
+      booking.tripCodeStartHash = secrets.tripCodeStartHash as never;
+      booking.tripCodeEndHash = secrets.tripCodeEndHash as never;
       await booking.save({ session });
 
       await audit(
@@ -153,6 +184,10 @@ export async function assignDriver(input: AssignInput): Promise<AssignResult> {
         driverId: String(driver._id),
         status: booking.status,
         warnings: conflicts,
+        driverToken: secrets.driverToken,
+        shareToken: secrets.shareToken,
+        tripCodeStart: secrets.tripCodeStart,
+        tripCodeEnd: secrets.tripCodeEnd,
       };
     });
     return result;

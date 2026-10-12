@@ -14,6 +14,10 @@ import {
   AuditLogModel,
   StaffModel,
   TicketModel,
+  NotificationModel,
+  RatingModel,
+  ReferralModel,
+  BusinessModel,
   TICKET_CATEGORIES,
   TICKET_STATUSES,
   TICKET_CHANNELS,
@@ -22,10 +26,18 @@ import { authenticate, requirePermission } from "../middleware/auth";
 import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
-import { maskPhone } from "../lib/ids";
+import { maskPhone, newBookingNumber, normalisePhone } from "../lib/ids";
 import { canTransition, BookingStatus, BOOKING_STATUSES } from "../domain/status";
 import { getActiveSettings } from "../services/settings";
-import { assignDriver } from "../services/assignment";
+import { estimateFare } from "../domain/pricing";
+import type { ServiceType } from "../domain/pricing";import { bookingEnd } from "../domain/availability";
+import { validateCoupon, consumeCoupon, assertCouponMinAmount, alreadyRedeemed, recordRedemption, releaseCouponUse } from "../services/coupons";
+import { sendMail, bookingConfirmationMail } from "../services/mail";
+import { SERVICE_TYPES } from "./pricing";
+import { assignDriver, issueDriverSecrets } from "../services/assignment";
+import { notifyBookingEvent, driverTextFor, logNotification } from "../services/notify";
+import { ensureReferralCode, resolvePackage, resolveReferrer, recordReferral, earnReferral } from "../services/growth";
+import type { Pkg } from "../domain/settings";
 import { revokeAllSessions } from "../lib/tokens";
 import { passwordIssues } from "../lib/password";
 import { listUnconfirmed } from "../domain/settings";
@@ -77,7 +89,96 @@ adminRouter.get("/dashboard", requirePermission("bookings:read"), async (_req, r
   });
 });
 
-// ---------- Bookings ----------
+// ---------- Alerts: never miss a booking (Phase 2) ----------
+adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res) => {
+  const now = new Date();
+  const tenMinAgo = new Date(now.getTime() - 10 * 60_000);
+  const twoHoursAhead = new Date(now.getTime() + 2 * 3_600_000);
+  const istNow = new Date(Date.now() + 330 * 60_000);
+  istNow.setUTCHours(0, 0, 0, 0);
+  const dayStart = new Date(istNow.getTime() - 330 * 60_000);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const weekStart = new Date(dayStart.getTime() - 6 * 86_400_000);
+
+  const [unassigned10, urgent, schedule, revenue, lowRatings, hiringGaps, business] = await Promise.all([
+    // Requested/confirmed, created >10 min ago, still no driver.
+    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, createdAt: { $lt: tenMinAgo } })
+      .sort({ scheduledStart: 1 }).limit(50)
+      .select("bookingNumber status scheduledStart customerSnapshot pickup").lean(),
+    // Starting within 2 hours with no driver — red warning.
+    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, scheduledStart: { $gte: now, $lt: twoHoursAhead } })
+      .sort({ scheduledStart: 1 }).limit(50)
+      .select("bookingNumber status scheduledStart customerSnapshot pickup").lean(),
+    // Today's schedule: who is on which job, driver + contact state.
+    BookingModel.find({ scheduledStart: { $gte: dayStart, $lt: dayEnd }, status: { $nin: ["cancelled", "rejected"] } })
+      .sort({ scheduledStart: 1 }).limit(200)
+      .select("bookingNumber status scheduledStart customerSnapshot pickup driverId contactLog").lean(),
+    // Revenue today / this week, cash vs online (ledger = source of truth).
+    PaymentModel.aggregate([
+      { $match: { status: "succeeded", recordedAt: { $gte: weekStart } } },
+      { $group: { _id: { day: { $gte: ["$recordedAt", dayStart] }, method: "$method" }, total: { $sum: "$amount" } } },
+    ]),
+    // Low ratings (1-2 stars, last 7 days) alert the owner.
+    RatingModel.find({ stars: { $lte: 2 }, createdAt: { $gte: new Date(now.getTime() - 7 * 86_400_000) } })
+      .sort({ createdAt: -1 }).limit(20)
+      .populate("bookingId", "bookingNumber")
+      .lean(),
+    // Active drivers with an incomplete hiring checklist.
+    DriverModel.find({ employmentStatus: "active" }).select("name employeeCode hiring").lean(),
+    BusinessModel.findOne().sort({ updatedAt: -1 }).lean(),
+  ]);
+
+  const driverIds = [...new Set(schedule.map((b) => String(b.driverId)).filter((id) => id !== "undefined"))];
+  const drivers = await DriverModel.find({ _id: { $in: driverIds } }).select("name phone photoUrl experienceYears languages").lean();
+  const byId = new Map(drivers.map((d) => [String(d._id), d]));
+  const scheduleView = schedule.map((b) => ({
+    bookingNumber: b.bookingNumber,
+    status: b.status,
+    scheduledStart: b.scheduledStart,
+    customer: b.customerSnapshot,
+    driver: b.driverId ? byId.get(String(b.driverId)) ?? null : null,
+    driverConfirmed: (b.contactLog ?? []).some((c: { result?: string }) => c.result === "confirmed"),
+  }));
+  // Driver reminders due: assigned but driver not yet confirmed, starting within 24h.
+  const remindersDue = scheduleView.filter(
+    (b) => b.driver && !b.driverConfirmed && ["confirmed", "driver_assigned"].includes(b.status) && new Date(b.scheduledStart).getTime() < now.getTime() + 24 * 3_600_000,
+  );
+
+  let todayCash = 0, todayOnline = 0, weekCash = 0, weekOnline = 0;
+  for (const r of revenue as { _id: { day: boolean; method: string }; total: number }[]) {
+    const online = r._id.method !== "cash";
+    if (r._id.day) {
+      if (online) todayOnline += r.total;
+      else todayCash += r.total;
+    }
+    if (online) weekOnline += r.total;
+    else weekCash += r.total;
+  }
+
+  const HIRING_KEYS = ["idProof", "licence", "policeVerification", "testDrive", "references", "codeOfConduct"];
+  const gaps = (hiringGaps as Record<string, any>[]).map((d) => {
+    const missing = HIRING_KEYS.filter((k) => !(d.hiring as Record<string, any> | undefined)?.[k]?.done);
+    return { id: String(d._id), name: d.name, employeeCode: d.employeeCode, missing };
+  }).filter((d) => d.missing.length > 0);
+  const biz = business as { insuranceValidTill?: Date; insuranceProvider?: string } | null;
+  const insuranceDaysLeft = biz?.insuranceValidTill ? Math.ceil((new Date(biz.insuranceValidTill).getTime() - now.getTime()) / 86_400_000) : null;
+
+  res.json({
+    unassignedOverdue: unassigned10.map((b) => ({ ...b, id: String(b._id), customerSnapshot: { ...(b.customerSnapshot as object), phone: maskPhone(String((b.customerSnapshot as { phone?: string })?.phone ?? "")) } })),
+    urgentNoDriver: urgent.map((b) => ({ ...b, id: String(b._id), customerSnapshot: { ...(b.customerSnapshot as object), phone: maskPhone(String((b.customerSnapshot as { phone?: string })?.phone ?? "")) } })),
+    lowRatings: (lowRatings as Record<string, any>[]).map((r) => ({
+      stars: r.stars,
+      review: r.review,
+      bookingNumber: (r.bookingId as { bookingNumber?: string } | null)?.bookingNumber,
+      at: (r as { createdAt?: Date }).createdAt,
+    })),
+    hiringGaps: gaps,
+    insurance: biz ? { provider: biz.insuranceProvider, validTill: biz.insuranceValidTill, daysLeft: insuranceDaysLeft } : null,
+    scheduleToday: scheduleView,
+    remindersDue,
+    revenue: { today: { cash: todayCash, online: todayOnline }, week: { cash: weekCash, online: weekOnline } },
+  });
+});
 const listQuery = z.object({
   status: z.enum(BOOKING_STATUSES).optional(),
   bookingNumber: z.string().trim().max(20).optional(),
@@ -114,6 +215,137 @@ adminRouter.get("/bookings/:id", requirePermission("bookings:read"), async (req,
   res.json({ ...adminBookingView(b), driver });
 });
 
+/** Staff creates a booking for a call/WhatsApp customer (under a minute). */
+const adminCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().transform((v, ctx) => {
+    const n = normalisePhone(v);
+    if (!n) ctx.addIssue({ code: "custom", message: "Enter a valid Indian mobile number." });
+    return n ?? "";
+  }),
+  email: z.email().trim().toLowerCase().optional(),
+  serviceType: z.enum(SERVICE_TYPES),
+  pickupAddress: z.string().trim().min(5).max(300),
+  destinationAddress: z.string().trim().min(5).max(300).optional(),
+  scheduledStart: z.coerce.date(),
+  durationHours: z.number().min(0.5).max(24 * 31),
+  scheduledEnd: z.coerce.date().optional(),
+  nights: z.number().int().min(0).max(60).default(0),
+  carModel: z.string().trim().min(2).max(80),
+  transmission: z.enum(["manual", "automatic"]),
+  instructions: z.string().trim().max(1000).default(""),
+  couponCode: z.string().trim().max(40).optional(),
+  packageId: z.string().trim().max(40).optional(),
+  referralCode: z.string().trim().max(12).optional(),
+  source: z.enum(["call", "whatsapp", "website"]).default("call"),
+});
+adminRouter.post("/bookings", requirePermission("bookings:create_for_customer"), validate(adminCreateSchema), async (req, res) => {
+  const b = req.body as z.infer<typeof adminCreateSchema>;
+  const staffId = new Types.ObjectId(req.principal!.id);
+  let customer = await CustomerModel.findOne({ phone: b.phone });
+  if (!customer) {
+    try {
+      customer = await CustomerModel.create({ name: b.name, phone: b.phone, email: b.email, phoneVerified: false, active: true });
+    } catch (e) {
+      if ((e as { code?: number }).code === 11000) customer = (await CustomerModel.findOne({ phone: b.phone }))!;
+      else throw e;
+    }
+  }
+  const customerId = customer._id as Types.ObjectId;
+  const { version, settings } = await getActiveSettings();
+  const now = new Date();
+  if (b.scheduledStart.getTime() < now.getTime() - 60_000) {
+    throw new AppError(400, "VALIDATION_ERROR", "Start time is in the past.", { scheduledStart: "past" });
+  }
+  const end = bookingEnd(b.scheduledStart, b.durationHours, b.scheduledEnd);
+  if (end <= b.scheduledStart) {
+    throw new AppError(400, "VALIDATION_ERROR", "End time must be after start time.", { scheduledEnd: "invalid" });
+  }
+  let coupon: Awaited<ReturnType<typeof validateCoupon>> | undefined;
+  if (b.couponCode) {
+    coupon = await validateCoupon(b.couponCode, b.serviceType, now);
+    if (coupon.perCustomerLimit === 1 && (await alreadyRedeemed(coupon.code, customerId))) {
+      throw new AppError(400, "VALIDATION_ERROR", "Customer has already used this coupon.", { couponCode: "already_used" });
+    }
+  }
+  let pkg: Pkg | undefined;
+  if (b.packageId) {
+    if (coupon) throw new AppError(400, "VALIDATION_ERROR", "A package cannot be combined with a coupon.", { couponCode: "no_combo" });
+    pkg = resolvePackage(settings, b.packageId);
+    if (!(SERVICE_TYPES as readonly string[]).includes(pkg.serviceType)) {
+      throw new AppError(400, "VALIDATION_ERROR", "This package is misconfigured.", { packageId: "invalid" });
+    }
+  }
+  const fareInput = pkg
+    ? { serviceType: pkg.serviceType as ServiceType, durationHours: pkg.durationHours, startAt: b.scheduledStart, nights: pkg.nights ?? 0 }
+    : { serviceType: b.serviceType, durationHours: b.durationHours, startAt: b.scheduledStart, nights: b.nights };
+  const base = estimateFare(fareInput as never, settings);
+  if (coupon) assertCouponMinAmount(coupon, base.total);
+  const estimate = pkg
+    ? { total: pkg.fixedPrice, lines: [{ label: `Package: ${pkg.name}`, amount: pkg.fixedPrice }], usesUnconfirmedRules: false }
+    : coupon?.type === "first_hour_price" ? estimateFare({ ...fareInput, firstHourCouponPrice: coupon.value }, settings) : base;
+
+  let booking;
+  for (let attempt = 0; attempt < 3 && !booking; attempt++) {
+    try {
+      booking = await BookingModel.create({
+        bookingNumber: newBookingNumber(),
+        customerId,
+        customerSnapshot: { name: b.name, phone: b.phone },
+        serviceType: b.serviceType,
+        pickup: { address: b.pickupAddress },
+        destination: b.destinationAddress ? { address: b.destinationAddress } : undefined,
+        scheduledStart: b.scheduledStart,
+        scheduledEnd: end,
+        durationHours: b.durationHours,
+        nights: b.nights,
+        carModel: b.carModel,
+        transmission: b.transmission,
+        instructions: b.instructions,
+        couponCode: b.couponCode?.toUpperCase(),
+        packageId: pkg?.id,
+        referralCode: b.referralCode?.toUpperCase(),
+        status: "requested",
+        fareEstimate: { total: estimate.total, lines: estimate.lines, usesUnconfirmedRules: estimate.usesUnconfirmedRules, computedAt: now, settingsVersion: version },
+        statusHistory: [{ from: null, to: "requested", actorId: staffId, actorKind: "staff", at: now }],
+        guestEmail: b.email,
+        source: b.source,
+      });
+    } catch (e) {
+      if ((e as { code?: number }).code !== 11000) throw e;
+    }
+  }
+  if (!booking) throw new AppError(500, "INTERNAL", "Could not create booking. Please try again.");
+  await ensureReferralCode(customerId);
+  if (b.referralCode) {
+    const referrer = await resolveReferrer(b.referralCode, customerId);
+    await recordReferral(b.referralCode, referrer._id as Types.ObjectId, customerId, booking._id as Types.ObjectId);
+  }
+  if (coupon) {
+    if (await consumeCoupon(coupon.code)) {
+      if (coupon.perCustomerLimit === 1) {
+        const recorded = await recordRedemption({ code: coupon.code, couponId: coupon.id, customerId, bookingId: booking._id as Types.ObjectId });
+        if (!recorded) {
+          await booking.deleteOne();
+          await releaseCouponUse(coupon.code);
+          throw new AppError(400, "VALIDATION_ERROR", "Customer has already used this coupon.", { couponCode: "already_used" });
+        }
+      }
+    } else {
+      await booking.deleteOne();
+      throw new AppError(400, "VALIDATION_ERROR", "Coupon code has been fully used.", { couponCode: "exhausted" });
+    }
+  }
+  await audit({ actorId: String(staffId), actorKind: "staff", actorRole: req.principal!.role, action: "booking.create_for_customer", entityType: "Booking", entityId: String(booking._id), after: { bookingNumber: booking.bookingNumber, source: b.source } });
+  if (b.email) {
+    const { subject, text } = bookingConfirmationMail({ bookingNumber: booking.bookingNumber, name: b.name, serviceType: b.serviceType, start: b.scheduledStart, pickup: b.pickupAddress, total: estimate.total });
+    sendMail(b.email, subject, text)
+      .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", b.email!, sent, sent ? undefined : "smtp not configured or send failed"))
+      .catch(() => {});
+  }
+  res.status(201).json(adminBookingView(booking.toObject()));
+});
+
 function adminBookingView(b: Record<string, any>, opts: { maskPhone?: boolean } = {}) {
   const phone = b.customerSnapshot?.phone as string | undefined;
   return {
@@ -139,6 +371,7 @@ function adminBookingView(b: Record<string, any>, opts: { maskPhone?: boolean } 
     statusHistory: b.statusHistory ?? [],
     version: b.version,
     couponCode: b.couponCode ?? null,
+    source: (b as Record<string, unknown>).source ?? "website",
     createdAt: b.createdAt,
   };
 }
@@ -164,6 +397,7 @@ adminRouter.patch("/bookings/:id/assign", requirePermission("bookings:assign"), 
     expectedVersion: body.expectedVersion,
     overrideReason: body.overrideReason,
   });
+  driverTextFor(body.driverId).then((t) => notifyBookingEvent(idParam(req), "driver_assigned", { driverText: t, tripCodes: result.tripCodeStart ? { start: result.tripCodeStart, end: result.tripCodeEnd } : undefined })).catch(() => {});
   res.json(result);
 });
 
@@ -184,7 +418,24 @@ adminRouter.patch("/bookings/:id/reassign", requirePermission("bookings:reassign
     overrideReason: body.overrideReason,
     reassignReason: body.reassignReason,
   });
+  driverTextFor(body.driverId).then((t) => notifyBookingEvent(idParam(req), "driver_assigned", { driverText: t, tripCodes: result.tripCodeStart ? { start: result.tripCodeStart, end: result.tripCodeEnd } : undefined })).catch(() => {});
   res.json(result);
+});
+
+/** (Re)issues driver link, share link and trip codes — e.g. for bookings assigned before Phase 3. */
+adminRouter.post("/bookings/:id/driver-link", requirePermission("bookings:assign"), async (req, res) => {
+  const b = await BookingModel.findById(idParam(req));
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  if (!b.driverId) throw new AppError(409, "CONFLICT", "Assign a driver first.");
+  const secrets = issueDriverSecrets();
+  b.driverTokenHash = secrets.driverTokenHash as never;
+  b.shareToken = secrets.shareToken as never;
+  b.tripCodeStartHash = secrets.tripCodeStartHash as never;
+  b.tripCodeEndHash = secrets.tripCodeEndHash as never;
+  b.version += 1;
+  await b.save();
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "booking.driver_link_issue", entityType: "Booking", entityId: String(b._id) });
+  res.json({ driverToken: secrets.driverToken, shareToken: secrets.shareToken, tripCodeStart: secrets.tripCodeStart, tripCodeEnd: secrets.tripCodeEnd });
 });
 
 const statusSchema = z.object({
@@ -195,6 +446,7 @@ const statusSchema = z.object({
   expectedVersion: z.number().int(),
   feeAmount: z.number().min(0).optional(),
   refundAmount: z.number().min(0).optional(),
+  refundMethod: z.enum(["upi", "card", "cash"]).optional(),
 });
 
 /**
@@ -252,6 +504,18 @@ adminRouter.patch("/bookings/:id/status", requirePermission("bookings:status"), 
   }
   b.version += 1;
   await b.save();
+  // Refund follows the approved policy: recorded in the ledger with who decided it.
+  if ((to === "cancelled" || to === "customer_no_show" || to === "rejected") && (body.refundAmount ?? 0) > 0) {
+    await PaymentModel.create({
+      bookingId: b._id,
+      amount: body.refundAmount,
+      currency: "INR",
+      method: body.refundMethod ?? "cash",
+      status: "refunded",
+      receivedBy: new Types.ObjectId(req.principal!.id),
+      reference: `Refund on ${to}: ${body.reason ?? ""}`.slice(0, 120),
+    });
+  }
   await audit({
     actorId: req.principal!.id,
     actorKind: "staff",
@@ -265,6 +529,24 @@ adminRouter.patch("/bookings/:id/status", requirePermission("bookings:status"), 
     requestId: req.requestId,
   });
   res.json({ id: String(b._id), status: b.status, version: b.version });
+  if (to === "completed") {
+    // Referral credit: the friend's trip completed → referrer earns ₹100 (redeemed via Coupons).
+    earnReferral(b._id as Types.ObjectId).catch(() => {});
+  }
+  // Automatic customer message for key transitions (email now; WhatsApp when provider added).
+  const eventFor: Partial<Record<BookingStatus, "confirmed" | "driver_on_the_way" | "in_progress" | "completed" | "cancelled">> = {
+    confirmed: "confirmed",
+    driver_on_the_way: "driver_on_the_way",
+    in_progress: "in_progress",
+    completed: "completed",
+    cancelled: "cancelled",
+  };
+  const event = eventFor[to];
+  if (event) {
+    notifyBookingEvent(String(b._id), event, {
+      cancelNote: event === "cancelled" && body.refundAmount ? `A refund of ₹${body.refundAmount} has been recorded.` : undefined,
+    }).catch(() => {});
+  }
 });
 
 const fareSchema = z.object({
@@ -374,6 +656,9 @@ const driverSchema = z.object({
   licenceNumber: z.string().trim().max(40).optional(),
   licenceExpiresAt: z.coerce.date().optional(),
   serviceZones: z.array(z.string().trim().max(60)).max(50).default([]),
+  photoUrl: z.string().trim().max(500).optional(),
+  experienceYears: z.number().int().min(0).max(60).optional(),
+  languages: z.array(z.enum(["odia", "hindi", "english"])).max(3).default([]),
 });
 
 adminRouter.get("/drivers", requirePermission("drivers:read"), async (_req, res) => {
@@ -405,6 +690,56 @@ adminRouter.patch("/drivers/:id", requirePermission("drivers:write"), validate(d
     before: { employmentStatus: before.employmentStatus },
     after: { employmentStatus: d?.employmentStatus },
   });
+  res.json(d);
+});
+
+const HIRING_ITEMS = ["idProof", "licence", "policeVerification", "testDrive", "references", "codeOfConduct"] as const;
+
+/** Hiring checklist tick (ID, licence, police verification, test drive, references, conduct). */
+adminRouter.post("/drivers/:id/hiring", requirePermission("drivers:write"), validate(z.object({
+  item: z.enum(HIRING_ITEMS),
+  done: z.boolean(),
+})), async (req, res) => {
+  const { item, done } = req.body as { item: (typeof HIRING_ITEMS)[number]; done: boolean };
+  const d = await DriverModel.findByIdAndUpdate(
+    idParam(req),
+    { $set: { [`hiring.${item}`]: { done, at: done ? new Date() : undefined } } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!d) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "driver.hiring", entityType: "Driver", entityId: String(d._id), after: { [item]: done } });
+  res.json(d);
+});
+
+/** Training record (topic, trainer, date) + uniform issue. */
+adminRouter.post("/drivers/:id/trainings", requirePermission("drivers:write"), validate(z.object({
+  topic: z.string().trim().min(2).max(200),
+  trainer: z.string().trim().max(120).optional(),
+  trainedAt: z.coerce.date().optional(),
+})), async (req, res) => {
+  const b = req.body as { topic: string; trainer?: string; trainedAt?: Date };
+  const d = await DriverModel.findByIdAndUpdate(
+    idParam(req),
+    { $push: { trainings: { topic: b.topic, trainer: b.trainer, trainedAt: b.trainedAt ?? new Date() } } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!d) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "driver.training", entityType: "Driver", entityId: String(d._id), after: { topic: b.topic } });
+  res.json(d);
+});
+
+adminRouter.post("/drivers/:id/uniform", requirePermission("drivers:write"), validate(z.object({
+  issued: z.boolean(),
+  size: z.string().trim().max(10).optional(),
+})), async (req, res) => {
+  const b = req.body as { issued: boolean; size?: string };
+  const d = await DriverModel.findByIdAndUpdate(
+    idParam(req),
+    { $set: { uniform: { issued: b.issued, size: b.size, issuedAt: b.issued ? new Date() : undefined } } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!d) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "driver.uniform", entityType: "Driver", entityId: String(d._id), after: b });
   res.json(d);
 });
 
@@ -539,6 +874,18 @@ const serviceRates = z
   })
   .strict();
 
+const pkgSchema = z.object({
+  id: z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9_-]+$/),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(500).default(""),
+  serviceType: z.string().trim().min(2).max(40),
+  durationHours: z.number().min(0.5).max(24 * 31),
+  destination: z.string().trim().max(300).optional(),
+  nights: z.number().int().min(0).max(60).default(0),
+  fixedPrice: z.number().min(0).max(10_00_000),
+  active: z.boolean().default(true),
+});
+
 const settingsSchema = z.object({
   pricing: z
     .object({
@@ -550,6 +897,7 @@ const settingsSchema = z.object({
         outstation_one_way: serviceRates,
         outstation_round_trip: serviceRates,
         airport_pickup_drop: serviceRates,
+        sober_driver: serviceRates,
       }),
       additionalHourRate: settingNumber(0, 100_000),
       lateNightSurcharge: settingNumber(0, 100_000),
@@ -561,6 +909,11 @@ const settingsSchema = z.object({
       nightHaltRate: settingNumber(0, 100_000),
       combinationRule: z.object({ value: z.enum(["package_plus_extras"]), status: statusEnum, note: z.string().max(500).optional() }),
       currency: z.literal("INR"),
+      packages: z.array(pkgSchema).max(50).default([]),
+      invoice: z.object({
+        gstin: z.object({ value: z.string().max(20), status: statusEnum, note: z.string().max(500).optional() }),
+        gstRate: settingNumber(0, 100),
+      }),
     })
     .strict(),
   policy: z
@@ -711,6 +1064,113 @@ adminRouter.get("/bookings/:id/driver-options", requirePermission("drivers:read"
 // ---------- Payments for a booking ----------
 adminRouter.get("/bookings/:id/payments", requirePermission("bookings:read"), async (req, res) => {
   const items = await PaymentModel.find({ bookingId: idParam(req) }).sort({ recordedAt: -1 }).lean();
+  res.json({ items });
+});
+
+/** Automatic customer messages for a booking (email now; WhatsApp/SMS when provider added). */
+adminRouter.get("/bookings/:id/notifications", requirePermission("bookings:read"), async (req, res) => {
+  const items = await NotificationModel.find({ bookingId: idParam(req) }).sort({ createdAt: -1 }).limit(50).lean();
+  res.json({ items });
+});
+
+/** Referrals: who referred whom, credit status (reward fulfilled via Coupons). */
+adminRouter.get("/referrals", requirePermission("bookings:read"), async (_req, res) => {
+  const items = await ReferralModel.find().sort({ createdAt: -1 }).limit(200).lean();
+  const ids = [...new Set(items.flatMap((r) => [String(r.referrerCustomerId), String(r.referredCustomerId)]))];
+  const customers = await CustomerModel.find({ _id: { $in: ids } }).select("name phone referralCode").lean();
+  const byId = new Map(customers.map((c) => [String(c._id), c]));
+  res.json({
+    items: items.map((r) => ({
+      code: r.code,
+      status: r.status,
+      referrer: byId.get(String(r.referrerCustomerId)) ?? null,
+      referred: byId.get(String(r.referredCustomerId)) ?? null,
+      bookingId: String(r.bookingId),
+      createdAt: (r as { createdAt?: Date }).createdAt,
+    })),
+  });
+});
+
+/** Business profile (insurance shown on site, edited by owner). */
+adminRouter.get("/business", requirePermission("bookings:read"), async (_req, res) => {
+  const b = await BusinessModel.findOne().sort({ updatedAt: -1 }).lean();
+  res.json(b ?? {});
+});
+
+adminRouter.put("/business", requirePermission("pricing:write"), validate(z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  address: z.string().trim().max(300).optional(),
+  insuranceProvider: z.string().trim().max(120).optional(),
+  insurancePolicyNumber: z.string().trim().max(60).optional(),
+  insuranceValidTill: z.coerce.date().optional(),
+  insuranceCoverageNote: z.string().trim().max(500).optional(),
+  supportReplyTarget: z.string().trim().max(200).optional(),
+})), async (req, res) => {
+  const b = await BusinessModel.findOneAndUpdate(
+    {},
+    { $set: { ...req.body, updatedBy: new Types.ObjectId(req.principal!.id) } },
+    { upsert: true, returnDocument: "after" },
+  ).lean();
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "business.update", entityType: "Business", entityId: String((b as { _id?: unknown })._id) });
+  res.json(b);
+});
+
+/** Monthly report: bookings, cancellations, revenue, popular services, driver usage, ratings. */
+adminRouter.get("/reports/monthly", requirePermission("reports:read"), validateQuery(z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "Use YYYY-MM.").optional(),
+})), async (req, res) => {
+  const q = (req as unknown as { validatedQuery: { month?: string } }).validatedQuery;
+  const nowIst = new Date(Date.now() + 330 * 60_000);
+  const [y, m] = (q.month ?? `${nowIst.getUTCFullYear()}-${String(nowIst.getUTCMonth() + 1).padStart(2, "0")}`).split("-").map(Number);
+  const startIst = new Date(Date.UTC(y, m - 1, 1));
+  const start = new Date(startIst.getTime() - 330 * 60_000);
+  const end = new Date(start.getTime() + 32 * 86_400_000);
+  const endMonth = new Date(Date.UTC(startIst.getUTCFullYear(), startIst.getUTCMonth() + 1, 1) - 330 * 60_000);
+
+  const [byStatus, revenue, byService, driverUsage, ratings] = await Promise.all([
+    BookingModel.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: endMonth } } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
+    PaymentModel.aggregate([
+      { $match: { recordedAt: { $gte: start, $lt: endMonth }, status: { $in: ["succeeded", "refunded", "partially_refunded"] } } },
+      { $group: { _id: { method: "$method", status: "$status" }, total: { $sum: "$amount" }, count: { $sum: 1 } } },
+    ]),
+    BookingModel.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: endMonth } } },
+      { $group: { _id: "$serviceType", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
+    BookingModel.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: endMonth }, driverId: { $exists: true } } },
+      { $group: { _id: "$driverId", trips: { $sum: 1 } } },
+      { $sort: { trips: -1 } },
+    ]),
+    RatingModel.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: endMonth } } },
+      { $group: { _id: "$stars", count: { $sum: 1 } } },
+    ]),
+  ]);
+  const driverIds = driverUsage.map((d) => d._id);
+  const drivers = await DriverModel.find({ _id: { $in: driverIds } }).select("name employeeCode").lean();
+  const byId = new Map(drivers.map((d) => [String(d._id), d]));
+  res.json({
+    month: `${y}-${String(m).padStart(2, "0")}`,
+    bookingsByStatus: byStatus,
+    revenue,
+    popularServices: byService,
+    driverUsage: driverUsage.map((d) => ({ driver: byId.get(String(d._id)) ?? null, trips: d.trips })),
+    ratingSplit: ratings,
+  });
+});
+
+/** All ratings with text (feedback review), newest first. */
+adminRouter.get("/ratings", requirePermission("bookings:read"), async (_req, res) => {
+  const items = await RatingModel.find()
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .populate("bookingId", "bookingNumber serviceType")
+    .lean();
   res.json({ items });
 });
 

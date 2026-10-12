@@ -1,0 +1,11 @@
+in the how works section remove "salaried" from the assign .
+tracking can be done using mobile number or ooking id .
+add a forgot password in the user sign in page , (tell me how can we setup the otp for now for free of cost)
+keep the fast booking and booking after sign in different , now when a user is signing in then book it opens the fast booking no sign in .
+add a note to keep the booking id for future reference (only in the fast booking sections),
+ toll/parking/fuel payer, food/stay/return payer these are the customer responsibilities.
+damage to the vehicle while driving is the drivers responsible .
+for now booking confirmation message will go to the email , through a smtp 
+
+merge the incompleted phases with the above updates then give me the final phases , once i confirm you will start building the next phases .
+ 

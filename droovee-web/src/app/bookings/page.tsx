@@ -11,7 +11,9 @@ import { dateTime, money, SERVICE_LABEL } from "@/lib/format";
 export default function MyBookingsPage() {
   const router = useRouter();
   const [items, setItems] = useState<any[] | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const s = getSession();
@@ -22,12 +24,27 @@ export default function MyBookingsPage() {
     api<{ items: any[] }>("/bookings/my")
       .then((r) => setItems(r.items))
       .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load your bookings."));
+    api<{ referralCode?: string }>("/auth/me")
+      .then((me) => setReferralCode(me.referralCode ?? null))
+      .catch(() => {});
   }, [router]);
 
   return (
     <PublicShell>
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <PageTitle title="My bookings" subtitle="Status, driver details and fare for each booking." actions={<LinkButton href="/book">Book a driver</LinkButton>} />
+        <PageTitle title="My bookings" subtitle="Status, driver details and fare for each booking." actions={<LinkButton href="/book/user">Book a driver</LinkButton>} />
+        {referralCode && (
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-4 text-sm ring-1 ring-emerald-200">
+            <span>🎁 Your referral code: <strong className="font-mono">{referralCode}</strong> — friends enter it when booking, you earn ₹100 credit when their trip completes.</span>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(referralCode).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium ring-1 ring-slate-300"
+            >
+              {copied ? "Copied ✓" : "Copy"}
+            </button>
+          </div>
+        )}
         {error && <Alert>{error}</Alert>}
         {items === null && !error && <p className="text-sm text-slate-500">Loading…</p>}
         {items && items.length === 0 && (
