@@ -34,8 +34,7 @@ const recurrenceSchema = z.object({
   returnPickup: z.string().trim().max(300).optional(),
 });
 
-const bookingSchema = z
-  .object({
+const bookingBaseSchema = z.object({
     serviceType: z.enum(SERVICE_TYPES),
     immediate: z.boolean().default(false),
     pickup: z.object({
@@ -62,8 +61,10 @@ const bookingSchema = z
     referralCode: z.string().trim().max(12).optional(),
     recurrence: recurrenceSchema.optional(),
     agreedToTerms: z.literal(true, { message: "Please accept the Terms and Cancellation policy." }).optional(),
-  })
-  .superRefine((b, ctx) => {
+  });
+
+/** Cross-field trip checks, shared by the signed-in and guest booking schemas. */
+function bookingChecks(b: z.infer<typeof bookingBaseSchema>, ctx: z.RefinementCtx) {
     const needsDestination = ["outstation_one_way", "outstation_round_trip", "airport_pickup_drop"].includes(b.serviceType);
     if (needsDestination && !b.destination) {
       ctx.addIssue({ code: "custom", path: ["destination"], message: "Destination is required for this service." });
@@ -91,7 +92,9 @@ const bookingSchema = z
         }
       }
     }
-  });
+}
+
+const bookingSchema = bookingBaseSchema.superRefine(bookingChecks);
 
 /** Customer creates a booking. Requires a verified mobile number (confirmed requirement). */
 bookingsRouter.post("/", authenticate, requireCustomer, bookingCreateLimiter(), validate(bookingSchema), async (req, res) => {
@@ -354,24 +357,26 @@ bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cance
 });
 
 /** Fast Booking (guest, no sign-in). PDF Phase 1 §3.1. */
-const guestSchema = bookingSchema.extend({
-  name: z.string().trim().min(2).max(120),
-  phone: z.string().transform((v, ctx) => {
-    const n = normalisePhone(v);
-    if (!n) ctx.addIssue({ code: "custom", message: "Enter a valid Indian mobile number." });
-    return n ?? "";
-  }),
-  otp: z.string().regex(/^\d{6}$/).optional(),
-  whatsapp: z.string().trim().max(20).optional(),
-  landmark: z.string().trim().max(300).optional(),
-  carNumber: z.string().trim().max(20).optional(),
-  altContact: z.string().trim().max(20).optional(),
-  driverLanguage: z.enum(["odia", "hindi", "english"]).optional(),
-  paymentPreference: z.enum(["online", "cash_upi"]),
-  email: z.email().trim().toLowerCase().optional(), // booking confirmation goes here
-  agreedToTerms: z.literal(true, { message: "Please accept the Terms and Cancellation policy." }),
-  company: z.string().max(100).optional(), // honeypot
-});
+const guestSchema = bookingBaseSchema
+  .extend({
+    name: z.string().trim().min(2).max(120),
+    phone: z.string().transform((v, ctx) => {
+      const n = normalisePhone(v);
+      if (!n) ctx.addIssue({ code: "custom", message: "Enter a valid Indian mobile number." });
+      return n ?? "";
+    }),
+    otp: z.string().regex(/^\d{6}$/).optional(),
+    whatsapp: z.string().trim().max(20).optional(),
+    landmark: z.string().trim().max(300).optional(),
+    carNumber: z.string().trim().max(20).optional(),
+    altContact: z.string().trim().max(20).optional(),
+    driverLanguage: z.enum(["odia", "hindi", "english"]).optional(),
+    paymentPreference: z.enum(["online", "cash_upi"]),
+    email: z.email().trim().toLowerCase().optional(), // booking confirmation goes here
+    agreedToTerms: z.literal(true, { message: "Please accept the Terms and Cancellation policy." }),
+    company: z.string().max(100).optional(), // honeypot
+  })
+  .superRefine(bookingChecks);
 bookingsRouter.post("/guest", bookingCreateLimiter(), validate(guestSchema), async (req, res) => {
   const b = req.body as z.infer<typeof guestSchema>;
   if (b.company) {
