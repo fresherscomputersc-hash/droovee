@@ -2,16 +2,24 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Droovee — Book a professional driver for your own car",
-  description: "Hourly, half-day, full-day, outstation, airport and monthly driver booking in Bhubaneswar. Open 24×7.",
+  title: "Droovee — Verified Salaried Chauffeurs for Your Car in Bhubaneswar",
+  description:
+    "Book background-verified, salaried drivers for your own car in Bhubaneswar. Hourly, outstation, airport, and late-night sober drivers. 24x7 doorstep dispatch.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0f172a",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-IN">
-      <body>{children}</body>
+    <html lang="en-IN" className="h-full">
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }
