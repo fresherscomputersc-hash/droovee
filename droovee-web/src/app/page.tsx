@@ -14,7 +14,7 @@ const STEPS = [
   {
     n: "02",
     t: "Instant Verification",
-    d: "Our dispatch team verifies driver availability and reserves an employee driver immediately.",
+    d: "Our dispatch team verifies driver availability and reserves a verified driver immediately.",
   },
   {
     n: "03",
@@ -31,8 +31,8 @@ const STEPS = [
 const FEATURES = [
   {
     icon: "🛡️",
-    t: "Police-Verified & Salaried",
-    d: "No random gig drivers. Every driver is a full-time salaried employee with complete police background checks.",
+    t: "Police-Verified Drivers",
+    d: "No random gig drivers. Every driver is trained and verified with complete police background checks.",
   },
   {
     icon: "👔",
@@ -161,7 +161,7 @@ export default function Home() {
               Why Car Owners Trust Droovee
             </h2>
             <p className="mt-3 text-base text-slate-600">
-              We employ our drivers on monthly payroll. That means punctuality, clean uniforms, and complete accountability.
+              Our drivers are trained, uniformed, and accountable on every trip — punctual pickup and complete peace of mind.
             </p>
           </div>
 

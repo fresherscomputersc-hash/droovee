@@ -128,7 +128,7 @@ export default function DriversPage() {
 
   return (
     <>
-      <PageTitle title="Drivers" subtitle="Salaried employee drivers. Driver contact details are visible to staff only." />
+      <PageTitle title="Drivers" subtitle="Company driver team. Driver contact details are visible to staff only." />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       {notice && <div className="mb-4"><Alert tone="success">{notice}</Alert></div>}
 
