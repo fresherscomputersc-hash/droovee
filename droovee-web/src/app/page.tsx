@@ -8,7 +8,7 @@ import { Reviews } from "@/components/Trust";
 const STEPS = [
   {
     n: "01",
-    t: "Book in 30 Seconds",
+    t: "Book Online",
     d: "Tell us where, when, and for how long. Add your car model and preferred payment mode.",
   },
   {
@@ -207,12 +207,8 @@ export default function Home() {
                   Need a professional driver right now?
                 </h2>
                 <p className="mt-2 text-sm text-slate-300 md:text-base">
-                  Doorstep arrival in 30 minutes anywhere in Bhubaneswar. Out late? Book our{" "}
-                  <Link href="/packages" className="font-semibold text-emerald-400 underline hover:text-emerald-300">
-                    Sober Driver Service
-                  </Link>{" "}
-                  to drive you safely home in your personal vehicle.
-                </p>
+  Doorstep arrival in 30 minutes anywhere in Bhubaneswar. Daily commutes, shopping trips, airport transfers, or highway travel—our verified chauffeurs drive your personal vehicle with care.
+</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
