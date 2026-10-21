@@ -126,7 +126,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
               Droovee
             </div>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">
-              Professional, police-verified salaried drivers for your personal vehicle in Bhubaneswar.
+              Professional, police-verified drivers for your personal vehicle in Bhubaneswar.
             </p>
             <p className="mt-3 text-xs text-slate-400">{CONTACT_ADDRESS}</p>
           </div>
