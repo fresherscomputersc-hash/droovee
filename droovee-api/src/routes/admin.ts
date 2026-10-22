@@ -338,8 +338,8 @@ adminRouter.post("/bookings", requirePermission("bookings:create_for_customer"),
   }
   await audit({ actorId: String(staffId), actorKind: "staff", actorRole: req.principal!.role, action: "booking.create_for_customer", entityType: "Booking", entityId: String(booking._id), after: { bookingNumber: booking.bookingNumber, source: b.source } });
   if (b.email) {
-    const { subject, text } = bookingConfirmationMail({ bookingNumber: booking.bookingNumber, name: b.name, serviceType: b.serviceType, start: b.scheduledStart, pickup: b.pickupAddress, total: estimate.total });
-    sendMail(b.email, subject, text)
+    const { subject, text, html } = bookingConfirmationMail({ bookingNumber: booking.bookingNumber, name: b.name, serviceType: b.serviceType, start: b.scheduledStart, pickup: b.pickupAddress, destination: b.destinationAddress, carModel: b.carModel, total: estimate.total });
+    sendMail(b.email, subject, text, html)
       .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", b.email!, sent, sent ? undefined : "smtp not configured or send failed"))
       .catch(() => {});
   }
@@ -635,6 +635,14 @@ adminRouter.post("/bookings/:id/offline-payment", requirePermission("payments:re
     reference: body.reference,
     recordedAt: new Date(),
   });
+  await BookingModel.findByIdAndUpdate(b._id, {
+    $set: {
+      "cashSettlement.collectedByDriver": true,
+      "cashSettlement.collectedAmount": body.amount,
+      "cashSettlement.collectedAt": new Date(),
+    },
+    $inc: { version: 1 },
+  });
   await audit({
     actorId: req.principal!.id,
     actorKind: "staff",
@@ -646,6 +654,103 @@ adminRouter.post("/bookings/:id/offline-payment", requirePermission("payments:re
     reason: body.reference,
   });
   res.status(201).json({ id: String(payment._id), amount: payment.amount, method: payment.method, status: payment.status });
+});
+
+const settleCashSchema = z.object({
+  amount: z.number().positive().optional(),
+  reference: z.string().trim().max(120).optional(),
+});
+
+/** Marks cash collected for a booking as settled / handed over to Droovee Admin. */
+adminRouter.post("/bookings/:id/settle-cash", requirePermission("payments:record_offline"), validate(settleCashSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof settleCashSchema>;
+  const b = await BookingModel.findById(idParam(req));
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+
+  const cashPayments = await PaymentModel.find({ bookingId: b._id, method: "cash", status: "succeeded" });
+  if (!cashPayments.length) {
+    throw new AppError(400, "VALIDATION_ERROR", "No cash payments found for this booking.");
+  }
+
+  const now = new Date();
+  const staffId = new Types.ObjectId(req.principal!.id);
+  const totalAmount = cashPayments.reduce((s, p) => s + p.amount, 0);
+  const settledAmount = body.amount ?? totalAmount;
+
+  await PaymentModel.updateMany(
+    { bookingId: b._id, method: "cash", status: "succeeded" },
+    { $set: { driverSettled: true, driverSettledAt: now, driverSettledBy: staffId, driverSettlementRef: body.reference } }
+  );
+
+  b.set("cashSettlement.settledToAdmin", true);
+  b.set("cashSettlement.settledAmount", settledAmount);
+  b.set("cashSettlement.settledAt", now);
+  b.set("cashSettlement.settledBy", staffId);
+  b.set("cashSettlement.settlementRef", body.reference);
+  b.version += 1;
+  await b.save();
+
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "payment.cash_settlement",
+    entityType: "Booking",
+    entityId: String(b._id),
+    after: { bookingId: String(b._id), settledAmount, settledToAdmin: true },
+    reason: body.reference,
+  });
+
+  res.json({ ok: true, settledAmount, settledAt: now });
+});
+
+/** Settles all pending cash collections for a driver in one reconciliation step. */
+adminRouter.post("/drivers/:id/settle-cash", requirePermission("payments:record_offline"), validate(settleCashSchema), async (req, res) => {
+  const driverId = idParam(req);
+  const driver = await DriverModel.findById(driverId);
+  if (!driver) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+
+  const bookings = await BookingModel.find({ driverId: driver._id }).select("_id").lean();
+  const bookingIds = bookings.map((b) => b._id);
+
+  const pendingPayments = await PaymentModel.find({
+    bookingId: { $in: bookingIds },
+    method: "cash",
+    status: "succeeded",
+    driverSettled: { $ne: true },
+  });
+
+  if (!pendingPayments.length) {
+    throw new AppError(400, "VALIDATION_ERROR", "No pending cash collections to settle for this driver.");
+  }
+
+  const now = new Date();
+  const staffId = new Types.ObjectId(req.principal!.id);
+  const totalSettled = pendingPayments.reduce((s, p) => s + p.amount, 0);
+  const ref = (req.body as z.infer<typeof settleCashSchema>)?.reference;
+
+  await PaymentModel.updateMany(
+    { _id: { $in: pendingPayments.map((p) => p._id) } },
+    { $set: { driverSettled: true, driverSettledAt: now, driverSettledBy: staffId, driverSettlementRef: ref } }
+  );
+
+  await BookingModel.updateMany(
+    { _id: { $in: pendingPayments.map((p) => p.bookingId) } },
+    { $set: { "cashSettlement.settledToAdmin": true, "cashSettlement.settledAt": now, "cashSettlement.settledBy": staffId, "cashSettlement.settlementRef": ref } }
+  );
+
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "driver.cash_settlement",
+    entityType: "Driver",
+    entityId: String(driver._id),
+    after: { driverId: String(driver._id), totalSettled, count: pendingPayments.length },
+    reason: ref,
+  });
+
+  res.json({ ok: true, totalSettled, count: pendingPayments.length, settledAt: now });
 });
 
 // ---------- Drivers ----------
@@ -897,7 +1002,6 @@ const settingsSchema = z.object({
         outstation_one_way: serviceRates,
         outstation_round_trip: serviceRates,
         airport_pickup_drop: serviceRates,
-        sober_driver: serviceRates,
       }),
       additionalHourRate: settingNumber(0, 100_000),
       lateNightSurcharge: settingNumber(0, 100_000),
@@ -1202,7 +1306,67 @@ adminRouter.get("/reports/bookings", requirePermission("reports:read"), validate
     { $match: { recordedAt: { $gte: from, $lt: to } } },
     { $group: { _id: { method: "$method", status: "$status" }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
   ]);
-  res.json({ from, to, byStatus, byService, payments, currency: "INR" });
+
+  const cashAgg = await PaymentModel.aggregate([
+    { $match: { recordedAt: { $gte: from, $lt: to }, method: "cash", status: "succeeded" } },
+    {
+      $group: {
+        _id: null,
+        totalCollected: { $sum: "$amount" },
+        totalSettled: { $sum: { $cond: ["$driverSettled", "$amount", 0] } },
+      },
+    },
+  ]);
+  const cashSummary = {
+    totalCollected: cashAgg[0]?.totalCollected ?? 0,
+    totalSettled: cashAgg[0]?.totalSettled ?? 0,
+    pendingDriverCash: (cashAgg[0]?.totalCollected ?? 0) - (cashAgg[0]?.totalSettled ?? 0),
+  };
+
+  const driverLedger = await PaymentModel.aggregate([
+    { $match: { recordedAt: { $gte: from, $lt: to }, method: "cash", status: "succeeded" } },
+    {
+      $lookup: {
+        from: "bookings",
+        localField: "bookingId",
+        foreignField: "_id",
+        as: "booking",
+      },
+    },
+    { $unwind: "$booking" },
+    {
+      $group: {
+        _id: "$booking.driverId",
+        cashCollected: { $sum: "$amount" },
+        cashSettled: { $sum: { $cond: ["$driverSettled", "$amount", 0] } },
+        tripCount: { $sum: 1 },
+      },
+    },
+    {
+      $lookup: {
+        from: "drivers",
+        localField: "_id",
+        foreignField: "_id",
+        as: "driver",
+      },
+    },
+    { $unwind: { path: "$driver", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        driverId: "$_id",
+        driverName: { $ifNull: ["$driver.name", "Unassigned / Direct"] },
+        employeeCode: { $ifNull: ["$driver.employeeCode", "—"] },
+        driverPhone: { $ifNull: ["$driver.phone", "—"] },
+        cashCollected: 1,
+        cashSettled: 1,
+        pendingBalance: { $subtract: ["$cashCollected", "$cashSettled"] },
+        tripCount: 1,
+      },
+    },
+    { $sort: { pendingBalance: -1, cashCollected: -1 } },
+  ]);
+
+  res.json({ from, to, byStatus, byService, payments, cashSummary, driverLedger, currency: "INR" });
 });
 
 // ---------- Support tickets ----------

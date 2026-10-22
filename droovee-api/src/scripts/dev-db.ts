@@ -15,7 +15,7 @@ import bcrypt from "bcryptjs";
 
 async function main() {
   const repl = await MongoMemoryReplSet.create({
-    instanceOpts: [{ port: 27017, storageEngine: "wiredTiger" }],
+    instanceOpts: [{ port: 27017, storageEngine: "wiredTiger", launchTimeout: 60000 }],
     replSet: { name: "rs0", count: 1, storageEngine: "wiredTiger" },
   });
   const uri = `mongodb://127.0.0.1:27017/droovee?replicaSet=rs0&directConnection=true`;

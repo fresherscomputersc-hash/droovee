@@ -12,7 +12,7 @@ import { authenticate } from "../middleware/auth";
 import { validate } from "../lib/validate";
 import { audit } from "../lib/audit";
 import { config } from "../config";
-import { sendMail } from "../services/mail";
+import { sendMail, welcomeEmail } from "../services/mail";
 import { ensureReferralCode } from "../services/growth";
 import { setAuthCookies, clearAuthCookies, refreshFromReq } from "../lib/cookies";
 import { loginLimiter } from "../lib/rateLimit";
@@ -75,6 +75,10 @@ authRouter.post("/customer/register", validate(registerSchema), async (req, res)
     phoneVerified: config.otpEnabled,
   });
   await ensureReferralCode(customer._id as Types.ObjectId);
+  if (customer.email) {
+    const welcome = welcomeEmail({ name: customer.name, email: customer.email });
+    sendMail(customer.email, welcome.subject, welcome.text, welcome.html).catch(() => {});
+  }
   await audit({ actorId: String(customer._id), actorKind: "customer", action: "customer.register", entityType: "Customer", entityId: String(customer._id) });
   const session = await sessionFor(String(customer._id), "customer", undefined, customer.tokenVersion ?? 0);
   setAuthCookies(res, session.accessToken, session.refreshToken);
@@ -97,7 +101,7 @@ authRouter.post("/customer/login", loginLimiter(), validate(passwordLoginSchema)
 
 const otpLoginSchema = z.object({ phone: phoneField, otp: otpCode });
 
-authRouter.post("/customer/login-otp", validate(otpLoginSchema), async (req, res) => {
+authRouter.post("/customer/login-otp", loginLimiter(), validate(otpLoginSchema), async (req, res) => {
   otpOff();
   const b = req.body as z.infer<typeof otpLoginSchema>;
   await verifyOtp(b.phone, "login", b.otp);

@@ -17,7 +17,6 @@ export const SERVICE_TYPES = [
   "outstation_one_way",
   "outstation_round_trip",
   "airport_pickup_drop",
-  "sober_driver",
 ] as const;
 
 const estimateQuery = z.object({

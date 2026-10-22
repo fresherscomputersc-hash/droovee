@@ -39,11 +39,6 @@ const CONTENT: Record<string, { title: string; body: string[]; cta: string }> = 
     body: ["Flight landing late? A driver waits for you at Biju Patnaik Airport, the railway station or the bus stop.", "Per-hour pricing. Share your terminal and our team tracks the rest."],
     cta: "Book an airport pickup",
   },
-  sober_driver: {
-    title: "Sober driver in Bhubaneswar — we drive you home",
-    body: ["Out late? Don't risk it. Our driver drives your own car home safely while you relax.", "Late-night specialists, 10 PM–6 AM. Call or WhatsApp us and we're on our way."],
-    cta: "Book a sober driver",
-  },
 };
 
 export function generateStaticParams() {

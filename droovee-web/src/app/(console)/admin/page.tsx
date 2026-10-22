@@ -210,12 +210,6 @@ export default function DashboardPage() {
                 {(alerts.hiringGaps ?? []).slice(0, 4).map((d: any) => (
                   <li key={d.id} className="text-xs text-slate-600">{d.name} ({d.employeeCode}): missing {d.missing.join(", ")}</li>
                 ))}
-                <li className="flex justify-between border-t border-slate-100 pt-3">
-                  <span>Insurance</span>
-                  <strong className={alerts.insurance && (alerts.insurance.daysLeft == null || alerts.insurance.daysLeft <= 30) ? "text-amber-700" : ""}>
-                    {!alerts.insurance?.provider ? "Not set" : alerts.insurance.daysLeft == null ? alerts.insurance.provider : `${alerts.insurance.daysLeft} days left`}
-                  </strong>
-                </li>
               </ul>
             )}
           </Card>

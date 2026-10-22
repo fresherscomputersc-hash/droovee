@@ -3,54 +3,102 @@ import Link from "next/link";
 import { LinkButton } from "@/components/ui";
 import { t, useLang } from "@/lib/i18n";
 
+import { useEffect, useState } from "react";
+import { getSession, Session } from "@/lib/session";
+
 export function Hero() {
   const lang = useLang();
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    setSession(getSession());
+  }, []);
+
+  const isCustomer = session?.kind === "customer";
 
   return (
     <div className="flex flex-col items-start text-left">
-      {/* Refined editorial tag - No cheesy glowing AI dots */}
-      <div className="inline-flex items-center gap-2 rounded-md border border-slate-700/60 bg-slate-800/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-300 backdrop-blur-sm">
+      {/* Editorial headline tag */}
+      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
         <span>Bhubaneswar</span>
-        <span className="text-slate-500">•</span>
-        <span className="text-emerald-400">24×7 Chauffeur Service</span>
+        <span className="text-emerald-600">•</span>
+        <span>24×7 Professional Chauffeurs</span>
       </div>
 
-      {/* Main Headline */}
-      <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-[3.25rem] lg:leading-[1.12]">
-        {t("hero", lang)}
+      {/* Main Hero Headline matching udrivo typography */}
+      <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl leading-[1.1]">
+        Hire a Verified Driver in Bhubaneswar for Your Car
       </h1>
 
-      {/* Subtitle with high-contrast readable color */}
-      <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-300 sm:text-lg">
-        {t("herosub", lang)}
+      {/* High-contrast subtitle */}
+      <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+        Need an acting driver near you? Hire a professional, police-verified driver for your own car at transparent, per-minute rates. Experienced, punctual, and safe on every trip.
       </p>
 
-      {/* Action Buttons */}
-      <div className="mt-8 flex flex-wrap items-center gap-3.5">
+      {/* Trust Badges matching udrivo pill format */}
+      <div className="mt-6 flex flex-wrap gap-2.5">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 13.4-3.5-3.5 1.4-1.4 2.1 2.1 4.5-4.5 1.4 1.4-5.9 5.9z" />
+          </svg>
+          100% Police-Verified Drivers
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 13.4-3.5-3.5 1.4-1.4 2.1 2.1 4.5-4.5 1.4 1.4-5.9 5.9z" />
+          </svg>
+          Vehicle Damage Accountable
+        </div>
+      </div>
+
+      {/* Customer Rating with 5 Gold Stars */}
+      <div className="mt-4 flex items-center gap-2">
+        <div className="flex text-amber-400">
+          {"★★★★★"}
+        </div>
+        <span className="text-sm font-bold text-white">4.9/5</span>
+        <span className="text-xs text-slate-400">from 1,000+ car owners</span>
+      </div>
+
+      {/* Action Buttons matching udrivo pill shape */}
+      <div className="mt-7 flex flex-wrap items-center gap-3">
         <Link
-          href="/book"
-          className="rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 hover:shadow-emerald-500/30"
+          href={isCustomer ? "/book/user" : "/book"}
+          className="rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 hover:scale-105"
         >
-          {t("book", lang)} →
+          Hire a Driver Now →
         </Link>
         <Link
-          href="/register"
-          className="rounded-xl border border-slate-700 bg-slate-800/80 px-5 py-3.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-slate-700 hover:text-white"
+          href={isCustomer ? "/bookings" : "/track"}
+          className="rounded-full border border-slate-700 bg-slate-800/90 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-700"
         >
-          {t("createaccount", lang)}
+          {isCustomer ? "My Trips" : "Track Driver"}
         </Link>
       </div>
 
-      {/* Sleek Ticket/Voucher Card for LAUNCH99 */}
-      <div className="mt-8 w-full max-w-md rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 text-xs text-amber-200/90 backdrop-blur-sm">
+      {!isCustomer && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+          <span>Already have an account?</span>
+          <Link href="/login" className="font-semibold text-emerald-400 hover:underline">
+            Sign In
+          </Link>
+          <span>•</span>
+          <Link href="/register" className="font-semibold text-slate-300 hover:text-white hover:underline">
+            Register as Member
+          </Link>
+        </div>
+      )}
+
+      {/* Voucher card for LAUNCH99 */}
+      <div className="mt-7 w-full max-w-md rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <span className="font-bold text-amber-400">Launch Benefit</span>
+            <span className="font-bold text-amber-300">New User Benefit</span>
             <p className="text-slate-300">
               First hour at only <span className="font-bold text-white">₹99</span> with coupon
             </p>
           </div>
-          <span className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 font-mono font-bold text-amber-300 tracking-wider">
+          <span className="rounded-lg border border-amber-400/40 bg-amber-400/20 px-2.5 py-1 font-mono font-bold text-amber-300 tracking-wider">
             LAUNCH99
           </span>
         </div>

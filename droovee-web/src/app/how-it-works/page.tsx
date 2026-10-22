@@ -13,7 +13,7 @@ const STEPS = [
   {
     step: "02",
     title: "Driver Assignment & Profile Card",
-    desc: "Our Bhubaneswar dispatch desk reviews available salaried drivers and locks in a driver. You receive a digital Driver Card with their photo, police-verification ID, driving experience, and phone number.",
+    desc: "Our Bhubaneswar dispatch desk reviews available verified drivers and locks in a driver. You receive a digital Driver Card with their photo, police-verification ID, driving experience, and phone number.",
     tip: "Live updates sent via SMS & WhatsApp.",
     badge: "Step 2: Instant Dispatch",
   },
@@ -50,7 +50,7 @@ const STEPS = [
 const FAQS = [
   {
     q: "Who is responsible if damage happens to my car?",
-    a: "Every Droovee chauffeur is a full-time salaried employee with verified driving credentials. If any accident or damage occurs due to our driver's fault while driving, Droovee takes direct operational accountability. You are never left to argue with random gig drivers.",
+    a: "Every Droovee chauffeur is a full-time trained professional with verified driving credentials. If any accident or damage occurs due to our driver's fault while driving, Droovee takes direct operational accountability. You are never left to argue with random gig drivers.",
   },
   {
     q: "Do I need to download an app to use Droovee?",

@@ -6,6 +6,9 @@ import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { money, SERVICE_LABEL, istInputToIso } from "@/lib/format";
+import { getSession } from "@/lib/session";
+import { RoutePreviewMap } from "@/components/RoutePreviewMap";
+import { HourSelector } from "@/components/HourSelector";
 
 type Service = keyof typeof SERVICE_LABEL;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -49,6 +52,12 @@ function BookForm() {
   const [coupon, setCoupon] = useState("LAUNCH99");
   const [referral, setReferral] = useState("");
   const [pkg, setPkg] = useState<any | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const s = getSession();
+    if (s?.kind === "customer") setIsLoggedIn(true);
+  }, []);
 
   // Package / service deep links (?package=id, ?service=type)
   useEffect(() => {
@@ -285,8 +294,70 @@ function BookForm() {
   return (
     <PublicShell>
       <div className="mx-auto max-w-6xl px-4 py-10 pb-28 lg:pb-10">
-        <h1 className="text-2xl font-semibold tracking-tight">Book a driver — no sign-in needed</h1>
-        <p className="mt-1 text-sm text-slate-600">Under a minute. Estimate up front, booking ID + tracking right after.</p>
+        {/* Booking Mode Selector Tabs */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Hire a Verified Driver</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Professional, police-verified chauffeurs for your personal car in Bhubaneswar.
+            </p>
+          </div>
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
+            <span className="rounded-lg bg-white px-3.5 py-2 text-xs font-bold text-slate-900 shadow-sm border border-slate-200/80">
+              ⚡ Guest Fast Booking
+            </span>
+            <Link
+              href={isLoggedIn ? "/book/user" : "/login?next=/book/user"}
+              className="rounded-lg px-3.5 py-2 text-xs font-semibold text-slate-600 transition hover:text-slate-950 hover:bg-slate-200/50"
+            >
+              {isLoggedIn ? "👤 Member Booking →" : "🔑 Sign In to Book →"}
+            </Link>
+          </div>
+        </div>
+
+        {/* Informational Callout Bar */}
+        {!isLoggedIn ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-50/70 p-4 text-xs text-emerald-950 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">
+                ✓
+              </span>
+              <span>
+                <strong>Fast Guest Booking active:</strong> No account or password required. Fares estimated up front.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 font-medium">
+              <span>Have an account?</span>
+              <Link href="/login?next=/book/user" className="font-bold text-emerald-800 underline hover:text-emerald-950">
+                Sign In
+              </Link>
+              <span>or</span>
+              <Link href="/register" className="font-bold text-emerald-800 underline hover:text-emerald-950">
+                Register as Member
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-50 p-4 text-xs text-emerald-950 shadow-sm">
+            <span>You are currently signed in! Save this trip to your account dashboard & invoices:</span>
+            <Link href="/book/user" className="rounded-lg bg-emerald-600 px-3.5 py-2 font-bold text-white shadow-sm hover:bg-emerald-700">
+              Switch to Member Booking →
+            </Link>
+          </div>
+        )}
+
+        <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-50/90 p-4 text-slate-800">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">📌</span>
+            <div className="text-sm">
+              <p className="font-semibold text-amber-950">Important Notice for Fast Booking:</p>
+              <p className="mt-0.5 text-slate-700">
+                Please make sure to <strong>note down and keep your Booking ID</strong> (e.g. #DRV-XXXXXXXX) once confirmed. You will need it to track your driver, as no login account is created for fast bookings.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {pkg && (
           <p className="mt-3 inline-flex rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-200">
             Package: <strong className="mx-1">{pkg.name}</strong> at a fixed {money(pkg.fixedPrice)} — form prefilled.
@@ -308,15 +379,34 @@ function BookForm() {
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" inputMode="tel" invalid={!!fields.phone} />
                 </Field>
                 <div className="md:col-span-2">
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="min-w-40 flex-1">
-                      <Field label="Mobile OTP *" error={fields.otp} hint="Tap Send code, then enter the 6-digit code.">
-                        <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} />
-                      </Field>
+                  <span className="mb-1 block text-sm font-medium text-slate-700">Mobile OTP *</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Input
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        placeholder="6-digit code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        invalid={!!fields.otp}
+                      />
                     </div>
-                    <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={sendOtp}
+                      className="whitespace-nowrap px-4 py-2 shrink-0 h-[42px]"
+                    >
+                      {otpSent ? "Resend code" : "Send code"}
+                    </Button>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">Stops fake bookings. The code comes by SMS (demo code shown here in dev).</p>
+                  {fields.otp ? (
+                    <p className="mt-1 text-xs text-rose-600">{fields.otp}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Tap Send code, then enter the 6-digit code (demo code displayed in dev mode).
+                    </p>
+                  )}
                 </div>
                 <label className="flex items-center gap-2 text-sm md:col-span-2">
                   <input type="checkbox" checked={sameWa} onChange={(e) => setSameWa(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
@@ -399,9 +489,12 @@ function BookForm() {
                   </Field>
                 )}
                 {!isFixed && !isOutstation && !isMonthly && (
-                  <Field label="Hours" error={fields.durationHours}>
-                    <Input type="number" min={1} step={0.5} value={hours} onChange={(e) => setHours(Number(e.target.value))} />
-                  </Field>
+                  <HourSelector
+                    value={hours}
+                    onChange={setHours}
+                    serviceType={service}
+                    error={fields.durationHours}
+                  />
                 )}
                 {isOutstation && (
                   <>
@@ -443,17 +536,24 @@ function BookForm() {
             </Card>
 
             <Card>
-              <h2 className="font-semibold">4. Where</h2>
+              <h2 className="font-semibold">4. Route & Locations</h2>
               <div className="mt-4 grid gap-4">
+                <RoutePreviewMap
+                  pickup={pickup}
+                  destination={destination}
+                  onSelectPickup={(addr) => setPickup(addr)}
+                  onSelectDestination={(addr) => setDestination(addr)}
+                />
+
                 <Field label="Pickup address *" error={fields.pickup}>
-                  <Textarea rows={2} value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House/flat, street, locality" />
+                  <Textarea rows={2} value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House/flat, street, locality in Bhubaneswar" />
                 </Field>
                 <Field label="Landmark (optional)">
                   <Input value={landmark} onChange={(e) => setLandmark(e.target.value)} placeholder="Near… " />
                 </Field>
                 {needsDestination && (
                   <Field label="Drop / destination address *" error={fields.destination}>
-                    <Textarea rows={2} value={destination} onChange={(e) => setDestination(e.target.value)} />
+                    <Textarea rows={2} value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Drop location, office or outstation destination" />
                   </Field>
                 )}
                 {isMonthly && (
@@ -462,11 +562,25 @@ function BookForm() {
                   </Field>
                 )}
                 <Field label="Special notes (optional)">
-                  <Textarea rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Parking, luggage, what to carry…" />
+                  <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Parking, luggage, gate instructions…" />
                 </Field>
+
+                {/* Explicit Responsibilities Notice */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 space-y-1.5">
+                  <p className="font-semibold text-slate-900">Trip Responsibilities Notice:</p>
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓ Customer pays:</span>
+                    <span>Tolls, parking, fuel, and the driver's food/stay/return travel (for applicable trips).</span>
+                  </p>
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓ Driver responsible:</span>
+                    <span>Damage to your vehicle while our driver is driving is the driver's direct operational responsibility.</span>
+                  </p>
+                </div>
+
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-emerald-600" />
-                  <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="underline">Terms</a> and <a href="/cancellation" target="_blank" rel="noreferrer" className="underline">Cancellation policy</a>. *</span>
+                  <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="underline font-medium text-emerald-800">Terms</a> and <a href="/cancellation" target="_blank" rel="noreferrer" className="underline font-medium text-emerald-800">Cancellation policy</a>. *</span>
                 </label>
                 {fields.agreedToTerms && <p className="text-xs text-rose-600">{fields.agreedToTerms}</p>}
               </div>

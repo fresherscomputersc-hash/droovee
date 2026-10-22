@@ -37,7 +37,7 @@ export default function PricingPage() {
             </div>
             <div className="rounded-xl bg-slate-800/40 p-3">
               <p className="text-xs text-slate-400">Driver Status</p>
-              <p className="text-base font-bold text-white">100% Salaried</p>
+              <p className="text-base font-bold text-white">100% Verified</p>
             </div>
             <div className="rounded-xl bg-slate-800/40 p-3">
               <p className="text-xs text-slate-400">Payment Modes</p>

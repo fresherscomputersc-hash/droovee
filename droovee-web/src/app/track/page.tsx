@@ -60,6 +60,25 @@ function BookingCard({ b }: { b: any }) {
   );
 }
 
+function MiniBookingCard({ b, onSelect }: { b: any; onSelect: () => void }) {
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-mono text-lg font-semibold">{b.bookingNumber}</h2>
+          <p className="text-xs text-slate-500">{SERVICE_LABEL[b.serviceType] ?? b.serviceType} • {dateTime(b.scheduledStart)}</p>
+        </div>
+        <StatusBadge status={b.status} />
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button variant="secondary" onClick={onSelect} className="text-xs">
+          View full details & timeline →
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function TrackForm() {
   const search = useSearchParams();
   const [mode, setMode] = useState<"id" | "phone">(search.get("phone") ? "phone" : "id");
@@ -69,6 +88,25 @@ function TrackForm() {
   const [list, setList] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function lookupByBookingId(bNum: string) {
+    setError(null);
+    setSingle(null);
+    setBusy(true);
+    try {
+      const q = new URLSearchParams();
+      q.set("bookingNumber", bNum.trim());
+      if (phone.trim()) q.set("phone", phone.trim());
+      const res = await api(`/bookings/track?${q.toString()}`, { auth: false });
+      setSingle(res);
+      setNumber(bNum);
+      window.scrollTo({ top: 300, behavior: "smooth" });
+    } catch (err) {
+      setError(err instanceof ApiError && err.status === 404 ? "Could not find that booking." : "Could not load booking details.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function lookup(e?: React.FormEvent) {
     e?.preventDefault();
@@ -141,10 +179,12 @@ function TrackForm() {
       </Card>
       {error && <Alert>{error}</Alert>}
       {single && <BookingCard b={single} />}
-      {list && (
-        <div className="space-y-6">
-          <p className="text-sm text-slate-600">{list.length} booking{list.length === 1 ? "" : "s"} found.</p>
-          {list.map((b) => <BookingCard key={b.id} b={b} />)}
+      {list && !single && (
+        <div className="space-y-4">
+          <p className="text-sm font-medium text-slate-700">{list.length} booking{list.length === 1 ? "" : "s"} found for this number:</p>
+          {list.map((b) => (
+            <MiniBookingCard key={b.bookingNumber} b={b} onSelect={() => lookupByBookingId(b.bookingNumber)} />
+          ))}
         </div>
       )}
     </div>

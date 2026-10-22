@@ -10,22 +10,34 @@ import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
 import { hmac, safeEqualHex } from "../lib/tokens";
 import { notifyBookingEvent } from "../services/notify";
+import { normalisePhone } from "../lib/ids";
+
+import { randomUUID } from "crypto";
+import { driverLimiter } from "../lib/rateLimit";
 
 export const driverRouter = Router();
+driverRouter.use(driverLimiter());
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "car-photos");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const EXT_MAP: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${String(req.params.token).slice(0, 8)}-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    filename: (_req, file, cb) => {
+      const ext = EXT_MAP[file.mimetype] || ".jpg";
+      cb(null, `${randomUUID()}${ext}`);
     },
   }),
   limits: { fileSize: 6 * 1024 * 1024, files: 8 },
   fileFilter: (_req, file, cb) => {
-    if (!/^image\/(jpeg|png|webp)$/.test(file.mimetype)) return cb(new AppError(400, "VALIDATION_ERROR", "Only JPG, PNG or WebP photos."));
+    if (!EXT_MAP[file.mimetype]) return cb(new AppError(400, "VALIDATION_ERROR", "Only JPG, PNG or WebP photos."));
     cb(null, true);
   },
 });
@@ -181,4 +193,172 @@ driverRouter.get("/share/:token", async (req, res) => {
     driverArrived: Boolean((b as Record<string, unknown>).driverArrivedAt),
     tripEnded: Boolean((b as Record<string, unknown>).tripEndedByDriverAt),
   });
+});
+
+/** Driver Mobile Portal — Sign in with phone or Employee Code */
+const driverLoginSchema = z.object({
+  identifier: z.string().trim().min(2).max(40),
+});
+
+driverRouter.post("/login", validate(driverLoginSchema), async (req, res) => {
+  const { identifier } = req.body as z.infer<typeof driverLoginSchema>;
+  const { DriverModel } = await import("../models");
+  const phone = normalisePhone(identifier);
+  const driver = await DriverModel.findOne({
+    $or: [
+      ...(phone ? [{ phone }] : []),
+      { employeeCode: identifier.trim().toUpperCase() },
+      { name: new RegExp(`^${identifier.trim()}$`, "i") },
+    ],
+    employmentStatus: { $ne: "suspended" },
+  }).lean();
+
+  if (!driver) {
+    throw new AppError(404, "NOT_FOUND", "Driver not found. Please check your phone number or employee code.");
+  }
+
+  res.json({
+    driver: {
+      id: String(driver._id),
+      employeeCode: driver.employeeCode,
+      name: driver.name,
+      phone: driver.phone,
+      experienceYears: driver.experienceYears,
+      languages: driver.languages,
+    },
+  });
+});
+
+/** Driver Mobile Portal — List all assigned trips */
+driverRouter.get("/portal/jobs", async (req, res) => {
+  const driverId = req.query.driverId as string;
+  if (!driverId || !Types.ObjectId.isValid(driverId)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Driver ID is required.");
+  }
+
+  const bookings = await BookingModel.find({ driverId: new Types.ObjectId(driverId) })
+    .sort({ scheduledStart: -1 })
+    .limit(50)
+    .lean();
+
+  const { PaymentModel } = await import("../models");
+  const bookingIds = bookings.map((b) => b._id);
+  const payments = await PaymentModel.find({ bookingId: { $in: bookingIds } }).lean();
+
+  const items = bookings.map((b) => {
+    const tripPayments = payments.filter((p) => String(p.bookingId) === String(b._id));
+    const cashCollected = tripPayments.some((p) => p.method === "cash" && p.status === "succeeded");
+    const confirmed = (b.contactLog ?? []).some((c: { result?: string }) => c.result === "confirmed");
+
+    return {
+      id: String(b._id),
+      bookingNumber: b.bookingNumber,
+      status: b.status,
+      serviceType: b.serviceType,
+      scheduledStart: b.scheduledStart,
+      scheduledEnd: b.scheduledEnd,
+      durationHours: b.durationHours,
+      pickup: b.pickup,
+      destination: b.destination,
+      customer: b.customerSnapshot,
+      altContact: (b as Record<string, unknown>).altContact,
+      carModel: b.carModel,
+      transmission: b.transmission,
+      instructions: b.instructions,
+      finalFare: b.finalFare ?? b.fareEstimate?.total,
+      driverConfirmed: confirmed,
+      driverArrived: Boolean((b as Record<string, unknown>).driverArrivedAt),
+      tripEnded: Boolean((b as Record<string, unknown>).tripEndedByDriverAt),
+      photoCount: Array.isArray(b.carPhotos) ? b.carPhotos.length : 0,
+      cashCollected,
+    };
+  });
+
+  res.json({ items });
+});
+
+/** Driver Mobile Portal — Milestone updates & cash collection */
+const portalActionSchema = z.object({
+  driverId: z.string(),
+  action: z.enum(["confirm", "on-the-way", "arrived", "start", "end", "collect-cash"]),
+  code: z.string().optional(),
+  amount: z.number().optional(),
+  notes: z.string().optional(),
+});
+
+driverRouter.post("/portal/jobs/:id/action", validate(portalActionSchema), async (req, res) => {
+  const id = String(req.params.id);
+  const { driverId, action, code, amount, notes } = req.body as z.infer<typeof portalActionSchema>;
+
+  if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(driverId)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid IDs.");
+  }
+
+  const b = await BookingModel.findOne({
+    _id: new Types.ObjectId(id),
+    driverId: new Types.ObjectId(driverId),
+  }).select("+tripCodeStartHash +tripCodeEndHash");
+
+  if (!b) throw new AppError(404, "NOT_FOUND", "Trip assignment not found.");
+
+  const now = new Date();
+
+  if (action === "confirm") {
+    b.contactLog.push({ channel: "whatsapp", result: "confirmed", notes: "Driver confirmed in driver portal", actorId: b.driverId, at: now } as never);
+    b.version += 1;
+    await b.save();
+    await audit({ actorKind: "system", action: "driver.confirm", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+  } else if (action === "on-the-way") {
+    b.status = "driver_on_the_way";
+    b.statusHistory.push({ from: "driver_assigned", to: "driver_on_the_way", actorId: b.driverId, actorKind: "system", at: now } as never);
+    b.version += 1;
+    await b.save();
+    await audit({ actorKind: "system", action: "driver.on_the_way", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+    notifyBookingEvent(String(b._id), "driver_on_the_way").catch(() => {});
+  } else if (action === "arrived") {
+    b.driverArrivedAt = now as never;
+    b.version += 1;
+    await b.save();
+    await audit({ actorKind: "system", action: "driver.arrived", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+  } else if (action === "start") {
+    if (b.tripCodeStartHash && code) {
+      if (!safeEqualHex(String(b.tripCodeStartHash), hmac(`trip-start|${code}`))) {
+        throw new AppError(400, "VALIDATION_ERROR", "Incorrect START code. Please verify with customer.");
+      }
+    }
+    b.status = "in_progress";
+    b.statusHistory.push({ from: "driver_on_the_way", to: "in_progress", actorId: b.driverId, actorKind: "system", at: now } as never);
+    b.version += 1;
+    await b.save();
+    await audit({ actorKind: "system", action: "driver.start", entityType: "Booking", entityId: String(b._id), reason: "start confirmed in portal" });
+    notifyBookingEvent(String(b._id), "in_progress").catch(() => {});
+  } else if (action === "end") {
+    if (b.tripCodeEndHash && code) {
+      if (!safeEqualHex(String(b.tripCodeEndHash), hmac(`trip-end|${code}`))) {
+        throw new AppError(400, "VALIDATION_ERROR", "Incorrect END code. Please verify with customer.");
+      }
+    }
+    b.tripEndedByDriverAt = now as never;
+    b.status = "completed";
+    b.statusHistory.push({ from: "in_progress", to: "completed", actorId: b.driverId, actorKind: "system", at: now } as never);
+    b.version += 1;
+    await b.save();
+    await audit({ actorKind: "system", action: "driver.end", entityType: "Booking", entityId: String(b._id), reason: "trip ended in portal" });
+    notifyBookingEvent(String(b._id), "completed").catch(() => {});
+  } else if (action === "collect-cash") {
+    const collectAmount = amount ?? b.finalFare ?? b.fareEstimate?.total ?? 0;
+    const { PaymentModel } = await import("../models");
+    await PaymentModel.create({
+      bookingId: b._id,
+      amount: collectAmount,
+      currency: "INR",
+      method: "cash",
+      status: "succeeded",
+      reference: notes || `Cash collected by driver (${b.bookingNumber})`,
+      recordedAt: now,
+    });
+    await audit({ actorKind: "system", action: "driver.collect_cash", entityType: "Booking", entityId: String(b._id), reason: `₹${collectAmount} cash collected` });
+  }
+
+  res.json({ success: true, status: b.status, tripEnded: Boolean(b.tripEndedByDriverAt) });
 });

@@ -76,7 +76,14 @@ export function createApp() {
   app.use("/api/v1/driver", driverRouter);
   app.use("/api/v1/ratings", ratingsRouter);
   // Driver-uploaded car photos (pre-trip dispute protection).
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  app.use(
+    "/uploads",
+    express.static(path.join(process.cwd(), "uploads"), {
+      setHeaders: (res) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+      },
+    }),
+  );
 
   app.use((_req, _res, next) => next(new AppError(404, "NOT_FOUND", "Endpoint not found.")));
   app.use(errorHandler);

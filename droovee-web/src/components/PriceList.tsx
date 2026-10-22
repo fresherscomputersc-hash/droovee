@@ -3,16 +3,24 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { money, SERVICE_LABEL } from "@/lib/format";
 
-const FALLBACK_ORDER = ["hourly", "half_day", "full_day", "monthly_office", "outstation_one_way", "outstation_round_trip", "airport_pickup_drop", "sober_driver"];
+const FALLBACK_ORDER = ["hourly", "half_day", "full_day", "monthly_office", "outstation_one_way", "outstation_round_trip", "airport_pickup_drop"];
+const FALLBACK_PRICES: Record<string, string> = {
+  hourly: "₹149",
+  half_day: "₹599",
+  full_day: "₹1,099",
+  monthly_office: "₹6,999",
+  outstation_one_way: "₹199/h",
+  outstation_round_trip: "₹169/h",
+  airport_pickup_drop: "₹199/h",
+};
 const FALLBACK_NOTES: Record<string, string> = {
-  hourly: "for 1 hour · extra hours at ₹89/hour",
-  half_day: "for 4 hours",
-  full_day: "for 8 hours",
-  monthly_office: "per month",
-  outstation_one_way: "per hour",
+  hourly: "for 1st hour · extra hours at ₹129/hour",
+  half_day: "for 4 hours · extra hours at ₹129/hour",
+  full_day: "for 8 hours · extra hours at ₹129/hour",
+  monthly_office: "starting from ₹6,999/month",
+  outstation_one_way: "per hour (one-way)",
   outstation_round_trip: "per hour · night halt ₹399/night",
-  airport_pickup_drop: "per hour",
-  sober_driver: "we drive you home · late nights",
+  airport_pickup_drop: "per hour · airport, station, bus stop",
 };
 
 function priceText(type: string, r: any): { price: string; note: string } {
@@ -37,7 +45,7 @@ export function PriceList() {
   return (
     <ul className="mt-4 divide-y divide-slate-100">
       {rows.map(({ type, rates }) => {
-        const { price, note } = rates ? priceText(type, rates) : { price: "", note: FALLBACK_NOTES[type] ?? "" };
+        const { price, note } = rates ? priceText(type, rates) : { price: FALLBACK_PRICES[type] ?? "…", note: FALLBACK_NOTES[type] ?? "" };
         return (
           <li key={type} className="flex items-start justify-between gap-4 py-3">
             <div>

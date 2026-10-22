@@ -22,13 +22,13 @@ test("hourly with ₹99 first-hour coupon", () => {
   assert.equal(e.total, 99);
 });
 
-test("half-day ₹379 for 4 hours, extra hour at ₹89", () => {
-  assert.equal(estimateFare({ serviceType: "half_day", durationHours: 4, startAt: DAY }, S).total, 379);
-  assert.equal(estimateFare({ serviceType: "half_day", durationHours: 5, startAt: DAY }, S).total, 379 + 89);
+test("half-day ₹599 for 4 hours, extra hour at ₹129", () => {
+  assert.equal(estimateFare({ serviceType: "half_day", durationHours: 4, startAt: DAY }, S).total, 599);
+  assert.equal(estimateFare({ serviceType: "half_day", durationHours: 5, startAt: DAY }, S).total, 599 + 129);
 });
 
-test("full-day ₹849 for 8 hours", () => {
-  assert.equal(estimateFare({ serviceType: "full_day", durationHours: 8, startAt: DAY }, S).total, 849);
+test("full-day ₹1,099 for 8 hours", () => {
+  assert.equal(estimateFare({ serviceType: "full_day", durationHours: 8, startAt: DAY }, S).total, 1099);
 });
 
 test("late-night surcharge applies in 10 PM–6 AM IST window", () => {
@@ -37,12 +37,12 @@ test("late-night surcharge applies in 10 PM–6 AM IST window", () => {
   assert.ok(e.lines.some((l) => l.label.includes("Late-night")));
 });
 
-test("monthly office pickup is flat ₹5,999", () => {
-  assert.equal(estimateFare({ serviceType: "monthly_office", durationHours: 1, startAt: DAY }, S).total, 5999);
+test("monthly office pickup is flat ₹6,999", () => {
+  assert.equal(estimateFare({ serviceType: "monthly_office", durationHours: 1, startAt: DAY }, S).total, 6999);
 });
 
-test("airport pickup ₹159/hour", () => {
-  assert.equal(estimateFare({ serviceType: "airport_pickup_drop", durationHours: 2, startAt: DAY }, S).total, 318);
+test("airport pickup ₹199/hour", () => {
+  assert.equal(estimateFare({ serviceType: "airport_pickup_drop", durationHours: 2, startAt: DAY }, S).total, 398);
 });
 
 test("outstation one-way ₹199/h and round-trip ₹169/h plus night halt ₹399", () => {
@@ -58,7 +58,7 @@ test("estimate is not flagged once pricing rules are confirmed", () => {
 test("listUnconfirmed reports open business rules", () => {
   const list = listUnconfirmed(S);
   assert.ok(!list.includes("pricing.combinationRule"));
-  assert.ok(list.includes("policy.driverBufferMinutes"));
+  assert.ok(!list.includes("policy.driverBufferMinutes"));
   assert.ok(list.includes("policy.cancellationWindowMinutes"));
   assert.ok(!list.includes("policy.paymentTiming"));
   assert.ok(!list.includes("policy.customerCompletionConfirmation"));

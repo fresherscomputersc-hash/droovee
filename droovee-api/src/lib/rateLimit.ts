@@ -56,3 +56,11 @@ export const bookingCreateLimiter = (): RateLimitRequestHandler =>
 
 /** Backstop for staff console traffic (lists + mutations). */
 export const adminLimiter = (): RateLimitRequestHandler => make(WINDOW, 200);
+
+/** Driver surface limiter: 60 requests per minute keyed by token or IP (DR-SEC-004). */
+export const driverLimiter = (): RateLimitRequestHandler =>
+  make(60_000, 60, (req) => {
+    const token = req.params?.token ?? "";
+    return token ? `driver:${token}` : ipKeyGenerator(req.ip ?? "");
+  });
+

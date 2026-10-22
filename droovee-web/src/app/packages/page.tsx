@@ -38,9 +38,9 @@ export default function PackagesPage() {
 
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           <Card>
-            <h2 className="font-semibold">🌙 Sober driver — we drive you home</h2>
-            <p className="mt-2 text-sm text-slate-600">Out late in Bhubaneswar? Our driver drives <strong>your own car</strong> home safely while you relax. Available late nights, 10 PM–6 AM.</p>
-            <div className="mt-4"><LinkButton href="/book?service=sober_driver">Book a sober driver</LinkButton></div>
+            <h2 className="font-semibold">✈️ Airport, Railway & Outstation Travel</h2>
+            <p className="mt-2 text-sm text-slate-600">Landing at Biju Patnaik Airport or planning an outstation trip to Puri, Cuttack or Konark? Transparent ₹199/hr hourly rate with verified highway drivers.</p>
+            <div className="mt-4"><LinkButton href="/book?service=airport_pickup_drop">Book airport transfer</LinkButton></div>
           </Card>
           <Card>
             <h2 className="font-semibold">🏢 Corporate & monthly plans</h2>

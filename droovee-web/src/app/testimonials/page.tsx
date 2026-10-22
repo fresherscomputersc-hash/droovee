@@ -109,7 +109,7 @@ export default function TestimonialsPage() {
               What car owners in Bhubaneswar say about Droovee
             </h1>
             <p className="mt-3 text-base text-slate-300">
-              Real stories from daily commuters, families, and professionals who trust our salaried chauffeurs with their personal vehicles.
+              Real stories from daily commuters, families, and professionals who trust our professional chauffeurs with their personal vehicles.
             </p>
           </div>
 

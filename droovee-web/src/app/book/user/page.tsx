@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
@@ -6,6 +7,8 @@ import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/component
 import { api, ApiError } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { money, SERVICE_LABEL, istInputToIso } from "@/lib/format";
+import { RoutePreviewMap } from "@/components/RoutePreviewMap";
+import { HourSelector } from "@/components/HourSelector";
 
 type Service = keyof typeof SERVICE_LABEL;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -183,10 +186,26 @@ export default function UserBookPage() {
   return (
     <PublicShell>
       <div className="mx-auto max-w-6xl px-4 py-10 pb-28 lg:pb-10">
-        <h1 className="text-2xl font-semibold tracking-tight">Book a driver</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Booking as <strong>{account?.name}</strong> ({account?.phone}). Booking confirmation will be emailed to your account email.
-        </p>
+        {/* Booking Mode Selector Tabs */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Member Driver Booking</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Booking as <strong>{account?.name}</strong> ({account?.phone}). Trips are automatically linked to your account.
+            </p>
+          </div>
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
+            <Link
+              href="/book"
+              className="rounded-lg px-3.5 py-2 text-xs font-semibold text-slate-600 transition hover:text-slate-950 hover:bg-slate-200/50"
+            >
+              ⚡ Fast Guest Booking
+            </Link>
+            <span className="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm">
+              👤 Member Booking (Active)
+            </span>
+          </div>
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <form onSubmit={submit} id="book-user-form" className="space-y-6 lg:col-span-2" noValidate>
@@ -238,9 +257,12 @@ export default function UserBookPage() {
                   </Field>
                 )}
                 {!isFixed && !isOutstation && !isMonthly && (
-                  <Field label="Hours" error={fields.durationHours}>
-                    <Input type="number" min={1} step={0.5} value={hours} onChange={(e) => setHours(Number(e.target.value))} />
-                  </Field>
+                  <HourSelector
+                    value={hours}
+                    onChange={setHours}
+                    serviceType={service}
+                    error={fields.durationHours}
+                  />
                 )}
                 {isOutstation && (
                   <>
@@ -282,14 +304,21 @@ export default function UserBookPage() {
             </Card>
 
             <Card>
-              <h2 className="font-semibold">3. Where</h2>
+              <h2 className="font-semibold">3. Route & Locations</h2>
               <div className="mt-4 grid gap-4">
+                <RoutePreviewMap
+                  pickup={pickup}
+                  destination={destination}
+                  onSelectPickup={(addr) => setPickup(addr)}
+                  onSelectDestination={(addr) => setDestination(addr)}
+                />
+
                 <Field label="Pickup address *" error={fields.pickup}>
-                  <Textarea rows={2} value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House/flat, street, locality" />
+                  <Textarea rows={2} value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House/flat, street, locality in Bhubaneswar" />
                 </Field>
                 {needsDestination && (
                   <Field label="Drop / destination address *" error={fields.destination}>
-                    <Textarea rows={2} value={destination} onChange={(e) => setDestination(e.target.value)} />
+                    <Textarea rows={2} value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Drop location, office or outstation destination" />
                   </Field>
                 )}
                 {isMonthly && (
@@ -298,11 +327,25 @@ export default function UserBookPage() {
                   </Field>
                 )}
                 <Field label="Special notes (optional)">
-                  <Textarea rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Parking, luggage, what to carry…" />
+                  <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Parking, luggage, gate instructions…" />
                 </Field>
+
+                {/* Explicit Responsibilities Notice */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 space-y-1.5">
+                  <p className="font-semibold text-slate-900">Trip Responsibilities Notice:</p>
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓ Customer pays:</span>
+                    <span>Tolls, parking, fuel, and the driver's food/stay/return travel (for applicable trips).</span>
+                  </p>
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓ Driver responsible:</span>
+                    <span>Damage to your vehicle while our driver is driving is the driver's direct operational responsibility.</span>
+                  </p>
+                </div>
+
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-emerald-600" />
-                  <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="underline">Terms</a> and <a href="/cancellation" target="_blank" rel="noreferrer" className="underline">Cancellation policy</a>. *</span>
+                  <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="underline font-medium text-emerald-800">Terms</a> and <a href="/cancellation" target="_blank" rel="noreferrer" className="underline font-medium text-emerald-800">Cancellation policy</a>. *</span>
                 </label>
                 {fields.agreedToTerms && <p className="text-xs text-rose-600">{fields.agreedToTerms}</p>}
               </div>

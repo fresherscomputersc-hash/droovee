@@ -241,15 +241,17 @@ bookingsRouter.post("/", authenticate, requireCustomer, bookingCreateLimiter(), 
   });
 
   if (customer.email) {
-    const { subject, text } = bookingConfirmationMail({
+    const { subject, text, html } = bookingConfirmationMail({
       bookingNumber: booking.bookingNumber,
       name: customer.name,
       serviceType: b.serviceType,
       start: b.scheduledStart,
       pickup: b.pickup.address,
+      destination: b.destination?.address,
+      carModel: b.carModel,
       total: estimate.total,
     });
-    sendMail(customer.email, subject, text)
+    sendMail(customer.email, subject, text, html)
       .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", customer.email!, sent, sent ? undefined : "smtp not configured or send failed"))
       .catch(() => {});
   }
@@ -276,17 +278,18 @@ async function driverFor(b: { driverId?: unknown; status: string }) {
 }
 bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof trackQuery> }).validatedQuery;
-  // Booking ID alone: IDs are non-guessable (DRV-XXXXXXXX), safe to return.
+  // Booking ID alone: IDs are non-guessable (DRV-XXXXXXXX), safe to return without shareToken.
   if (q.bookingNumber && !q.phone) {
     const b = await BookingModel.findOne({ bookingNumber: q.bookingNumber.trim().toUpperCase() }).lean();
     if (!b) throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
-    res.json(customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string })));
+    const view = customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string }));
+    delete (view as Record<string, unknown>).shareToken;
+    res.json(view);
     return;
   }
   const phone = normalisePhone(q.phone ?? "");
   if (!phone) throw new AppError(400, "VALIDATION_ERROR", "Enter a valid Indian mobile number.", { phone: "invalid" });
-  // Phone alone: list this number's bookings (newest first). Phone numbers are
-  // personal but not secret; only the limited customer view is returned.
+  // Phone alone: return minimal fields to avoid exposing addresses to unauthenticated callers (DR-SEC-001)
   if (!q.bookingNumber) {
     const list = await BookingModel.find({
       $or: [{ "customerSnapshot.phone": phone }, { altContact: q.phone!.trim() }],
@@ -295,7 +298,15 @@ bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async
       .limit(20)
       .lean();
     if (!list.length) throw new AppError(404, "NOT_FOUND", "No bookings found for this number.");
-    res.json({ items: list.map((b) => customerView(b as unknown as Record<string, unknown>, null)) });
+    res.json({
+      items: list.map((b) => ({
+        id: String(b._id),
+        bookingNumber: b.bookingNumber,
+        status: b.status as BookingStatus,
+        scheduledStart: b.scheduledStart,
+        serviceType: b.serviceType,
+      })),
+    });
     return;
   }
   // Both: single booking, phone must match (strictest check).
@@ -306,7 +317,9 @@ bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async
   if (snapshotPhone !== phone && altPhone !== phone) {
     throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
   }
-  res.json(customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string })));
+  const view = customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string }));
+  delete (view as Record<string, unknown>).shareToken;
+  res.json(view);
 });
 
 /** Customer lists their own bookings only (FR-BOOK-04). */
@@ -547,15 +560,17 @@ bookingsRouter.post("/guest", bookingCreateLimiter(), validate(guestSchema), asy
 
   // Confirmation email (SMTP). Fire-and-forget: booking succeeds even if mail fails.
   if (b.email) {
-    const { subject, text } = bookingConfirmationMail({
+    const { subject, text, html } = bookingConfirmationMail({
       bookingNumber: booking.bookingNumber,
       name: b.name,
       serviceType: b.serviceType,
       start: b.scheduledStart,
       pickup: b.pickup.address,
+      destination: b.destination?.address,
+      carModel: b.carModel,
       total: estimate.total,
     });
-    sendMail(b.email, subject, text)
+    sendMail(b.email, subject, text, html)
       .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", b.email!, sent, sent ? undefined : "smtp not configured or send failed"))
       .catch(() => {});
   }

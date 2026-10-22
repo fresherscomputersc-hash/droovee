@@ -415,21 +415,65 @@ export default function AdminBookingDetail() {
           </Card>
 
           <Card>
-            <h2 className="font-semibold">Payments</h2>
+            <h2 className="font-semibold">Payments & Cash Settlement</h2>
             {payments.length === 0 ? <p className="mt-2 text-sm text-slate-600">No payments recorded.</p> : (
               <ul className="mt-3 space-y-2 text-sm">
-                {payments.map((p) => <li key={p._id} className="flex justify-between"><span>{p.method.toUpperCase()} · {p.status}</span><strong>{money(p.amount)}</strong></li>)}
+                {payments.map((p) => {
+                  const isCash = p.method === "cash";
+                  const isSettled = p.driverSettled || b.cashSettlement?.settledToAdmin;
+                  return (
+                    <li key={p._id} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold uppercase text-xs tracking-wider text-slate-700">{p.method} · {p.status}</span>
+                        <strong>{money(p.amount)}</strong>
+                      </div>
+                      {isCash && (
+                        <div className="pt-1 flex items-center justify-between text-xs">
+                          {isSettled ? (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              ✓ Settled to Admin {p.driverSettlementRef ? `(${p.driverSettlementRef})` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-amber-800 font-medium bg-amber-100 px-2 py-0.5 rounded-full text-[11px]">
+                              Cash with Driver (Awaiting Handover)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
+
+            {payments.some((p) => p.method === "cash" && !p.driverSettled && !b.cashSettlement?.settledToAdmin) && can(role, "payments:record_offline") && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold text-amber-900">Driver Cash Handover Pending</p>
+                <p className="mt-0.5 text-xs text-amber-800">Has the driver handed over this cash to Droovee Admin?</p>
+                <Button
+                  type="button"
+                  className="mt-2.5 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-1.5"
+                  disabled={busy}
+                  onClick={async () => {
+                    const ref = prompt("Optional reference note (e.g. Received at office / Bank deposit):", "Received at hub");
+                    if (ref === null) return;
+                    await run(() => api(`/admin/bookings/${id}/settle-cash`, { method: "POST", body: { reference: ref } }), "Cash settled to admin.");
+                  }}
+                >
+                  Confirm Cash Received from Driver ✓
+                </Button>
+              </div>
+            )}
+
             {can(role, "payments:record_offline") && (
-              <form className="mt-4 space-y-3" onSubmit={async (e) => {
+              <form className="mt-4 space-y-3 pt-3 border-t border-slate-100" onSubmit={async (e) => {
                 e.preventDefault();
                 const ok = await run(() => api(`/admin/bookings/${id}/offline-payment`, { method: "POST", body: { amount: Number(cashAmount), method: "cash", reference: cashRef.trim() || undefined } }), "Cash receipt recorded.");
                 if (ok) { setCashAmount(""); setCashRef(""); }
               }}>
-                <Field label="Cash received by driver (₹)"><Input type="number" min={1} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} /></Field>
-                <Field label="Reference / notes"><Input value={cashRef} onChange={(e) => setCashRef(e.target.value)} /></Field>
-                <Button type="submit" variant="secondary" disabled={busy || !cashAmount}>Record cash receipt</Button>
+                <Field label="Record Cash Collection (₹)"><Input type="number" min={1} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="Amount collected by driver" /></Field>
+                <Field label="Reference / notes"><Input value={cashRef} onChange={(e) => setCashRef(e.target.value)} placeholder="Notes e.g. Collected at drop" /></Field>
+                <Button type="submit" variant="secondary" disabled={busy || !cashAmount}>Record cash collection</Button>
               </form>
             )}
           </Card>
