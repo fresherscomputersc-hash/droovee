@@ -46,9 +46,6 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link href="/pricing" className="text-xs font-semibold text-slate-300 transition hover:text-white">
               Pricing
             </Link>
-            <Link href="/testimonials" className="text-xs font-semibold text-slate-300 transition hover:text-white">
-              Testimonials
-            </Link>
             {/* Language Pill */}
             <button
               onClick={toggleLang}
@@ -158,13 +155,6 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 className="text-slate-700 hover:text-emerald-600"
               >
                 Fares & Pricing
-              </Link>
-              <Link
-                href="/testimonials"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-slate-700 hover:text-emerald-600"
-              >
-                Customer Testimonials
               </Link>
               <Link
                 href="/track"

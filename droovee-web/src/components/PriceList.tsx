@@ -61,7 +61,7 @@ export function PriceList() {
           <p className="font-medium">Late-night service (10 PM–6 AM)</p>
           <p className="text-xs text-slate-500">additional charge</p>
         </div>
-        <p className="whitespace-nowrap font-semibold">+₹99</p>
+        <p className="whitespace-nowrap font-semibold">+₹149</p>
       </li>
     </ul>
   );
