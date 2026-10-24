@@ -5,6 +5,11 @@ import { config } from "../config";
 export const ACCESS_COOKIE = "droovee_at";
 /** Long-lived opaque refresh token. Scoped to the auth path to limit exposure. */
 export const REFRESH_COOKIE = "droovee_rt";
+/**
+ * Driver portal session. Separate from the staff/customer access cookie so a
+ * driver login never collides with a customer session in the same browser.
+ */
+export const DRIVER_ACCESS_COOKIE = "droovee_driver_at";
 
 /**
  * Tokens travel in httpOnly cookies so that page JavaScript (and any XSS)
@@ -48,6 +53,19 @@ export function clearAuthCookies(res: Response): void {
 
 function cookiesOf(req: Request): Record<string, string> {
   return (req as Request & { cookies?: Record<string, string> }).cookies ?? {};
+}
+
+export function setDriverCookie(res: Response, accessToken: string): void {
+  res.cookie(DRIVER_ACCESS_COOKIE, accessToken, baseOpts(config.driverTokenTtlSeconds * 1000, "/"));
+}
+
+export function clearDriverCookie(res: Response): void {
+  res.clearCookie(DRIVER_ACCESS_COOKIE, { path: "/" });
+}
+
+/** Driver access token from the cookie (used when no Authorization header is present). */
+export function driverAccessFromReq(req: Request): string | undefined {
+  return cookiesOf(req)[DRIVER_ACCESS_COOKIE];
 }
 
 /** Access token from the cookie (used when no Authorization header is present). */

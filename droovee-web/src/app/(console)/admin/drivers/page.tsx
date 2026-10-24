@@ -124,6 +124,17 @@ export default function DriversPage() {
     }
   }
 
+  async function resetPin(id: string, name: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await api<{ pin: string }>(`/admin/drivers/${id}/portal-pin`, { method: "POST", body: {} });
+      setNotice(`Portal PIN for ${name}: ${r.pin} — share it privately with the driver. It will not be shown again.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not generate a portal PIN.");
+    }
+  }
+
   const focus = items?.find((d) => d._id === focusId) ?? null;
 
   return (
@@ -226,6 +237,16 @@ export default function DriversPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="mt-6 border-t border-slate-100 pt-4">
+                <p className="text-sm font-medium">Driver portal access</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Generates a new 6-digit PIN for {focus.name}. The PIN is shown once — share it privately with the driver.
+                  Resetting also signs out any device currently using the old PIN.
+                </p>
+                <Button type="button" variant="secondary" className="mt-2" onClick={() => resetPin(focus._id, focus.name)}>
+                  Generate new portal PIN
+                </Button>
               </div>
             </Card>
           )}

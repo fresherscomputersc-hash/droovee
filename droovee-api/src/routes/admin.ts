@@ -626,6 +626,12 @@ adminRouter.post("/bookings/:id/offline-payment", requirePermission("payments:re
   const body = req.body as z.infer<typeof offlinePaymentSchema>;
   const b = await BookingModel.findById(idParam(req)).lean();
   if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  // Guard against double-recording: the driver may already have collected cash
+  // through the portal. Finance should reconcile that entry, not add a second one.
+  const existingCash = await PaymentModel.findOne({ bookingId: b._id, method: "cash", status: "succeeded" }).lean();
+  if (existingCash) {
+    throw new AppError(409, "CONFLICT", "Cash is already recorded for this booking. Use the cash settlement action instead of recording it twice.");
+  }
   const payment = await PaymentModel.create({
     bookingId: b._id,
     amount: body.amount,
@@ -637,7 +643,7 @@ adminRouter.post("/bookings/:id/offline-payment", requirePermission("payments:re
   });
   await BookingModel.findByIdAndUpdate(b._id, {
     $set: {
-      "cashSettlement.collectedByDriver": true,
+      // Staff recorded the receipt, so do not attribute collection to the driver.
       "cashSettlement.collectedAmount": body.amount,
       "cashSettlement.collectedAt": new Date(),
     },
@@ -796,6 +802,28 @@ adminRouter.patch("/drivers/:id", requirePermission("drivers:write"), validate(d
     after: { employmentStatus: d?.employmentStatus },
   });
   res.json(d);
+});
+
+/** Issues a fresh 6-digit PIN for the driver mobile portal (returned once). */
+adminRouter.post("/drivers/:id/portal-pin", requirePermission("drivers:write"), async (req, res) => {
+  const pin = String(randomInt(100000, 1000000));
+  const hash = await bcrypt.hash(pin, 12);
+  const d = await DriverModel.findByIdAndUpdate(
+    idParam(req),
+    { $set: { portalPinHash: hash, portalPinSetAt: new Date() }, $inc: { tokenVersion: 1 } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!d) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "driver.portal_pin_reset",
+    entityType: "Driver",
+    entityId: String(d._id),
+    after: { employeeCode: d.employeeCode },
+  });
+  res.status(201).json({ employeeCode: d.employeeCode, pin });
 });
 
 const HIRING_ITEMS = ["idProof", "licence", "policeVerification", "testDrive", "references", "codeOfConduct"] as const;

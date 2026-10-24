@@ -43,6 +43,10 @@ export const config = {
   get refreshTokenTtlDays(): number {
     return num("REFRESH_TOKEN_TTL_DAYS", 30);
   },
+  /** Driver portal sessions are shift-length (12h) instead of the 15-minute staff access token. */
+  get driverTokenTtlSeconds(): number {
+    return num("DRIVER_TOKEN_TTL_SECONDS", 12 * 60 * 60);
+  },
   /** Pepper for hashing OTPs and refresh tokens. Required in ALL environments. */
   get tokenPepper(): string {
     return req("TOKEN_PEPPER");

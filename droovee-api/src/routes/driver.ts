@@ -3,17 +3,22 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
 import { BookingModel } from "../models";
 import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
-import { hmac, safeEqualHex } from "../lib/tokens";
+import { hmac, safeEqualHex, signAccess } from "../lib/tokens";
 import { notifyBookingEvent } from "../services/notify";
 import { normalisePhone } from "../lib/ids";
 
 import { randomUUID } from "crypto";
-import { driverLimiter } from "../lib/rateLimit";
+import { driverLimiter, driverLoginLimiter } from "../lib/rateLimit";
+import { authenticateDriver } from "../middleware/auth";
+import { clearDriverCookie, setDriverCookie } from "../lib/cookies";
+import { config } from "../config";
+import { canTransition, BookingStatus } from "../domain/status";
 
 export const driverRouter = Router();
 driverRouter.use(driverLimiter());
@@ -195,27 +200,43 @@ driverRouter.get("/share/:token", async (req, res) => {
   });
 });
 
-/** Driver Mobile Portal — Sign in with phone or Employee Code */
+/** Driver Mobile Portal — sign in with phone/employee code + 6-digit PIN. */
 const driverLoginSchema = z.object({
   identifier: z.string().trim().min(2).max(40),
+  pin: z.string().regex(/^\d{6}$/, "Enter the 6-digit portal PIN."),
 });
 
-driverRouter.post("/login", validate(driverLoginSchema), async (req, res) => {
-  const { identifier } = req.body as z.infer<typeof driverLoginSchema>;
+driverRouter.post("/login", driverLoginLimiter(), validate(driverLoginSchema), async (req, res) => {
+  const { identifier, pin } = req.body as z.infer<typeof driverLoginSchema>;
   const { DriverModel } = await import("../models");
   const phone = normalisePhone(identifier);
-  const driver = await DriverModel.findOne({
-    $or: [
-      ...(phone ? [{ phone }] : []),
-      { employeeCode: identifier.trim().toUpperCase() },
-      { name: new RegExp(`^${identifier.trim()}$`, "i") },
-    ],
-    employmentStatus: { $ne: "suspended" },
-  }).lean();
+  const code = identifier.trim().toUpperCase();
 
-  if (!driver) {
-    throw new AppError(404, "NOT_FOUND", "Driver not found. Please check your phone number or employee code.");
+  // Exact matches only: no user-supplied regex and no display-name lookup, so
+  // there is no ReDoS/pattern-injection surface and names cannot enumerate accounts.
+  const driver = await DriverModel.findOne({
+    $or: [...(phone ? [{ phone }] : []), { employeeCode: code }],
+    employmentStatus: { $ne: "suspended" },
+  })
+    .select("+portalPinHash")
+    .lean();
+
+  // Always run bcrypt so an unknown identifier and a wrong PIN take the same time.
+  const hash = driver?.portalPinHash ?? "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv";
+  const pinOk = await bcrypt.compare(pin, hash);
+
+  if (!driver || !driver.portalPinHash || !pinOk) {
+    throw new AppError(401, "UNAUTHENTICATED", "Driver not found or PIN is incorrect.");
   }
+  if (driver.employmentStatus !== "active") {
+    throw new AppError(403, "FORBIDDEN", "Driver account is not active. Contact dispatch.");
+  }
+
+  const accessToken = signAccess(
+    { sub: String(driver._id), kind: "driver", v: driver.tokenVersion ?? 0 },
+    config.driverTokenTtlSeconds,
+  );
+  setDriverCookie(res, accessToken);
 
   res.json({
     driver: {
@@ -229,14 +250,32 @@ driverRouter.post("/login", validate(driverLoginSchema), async (req, res) => {
   });
 });
 
-/** Driver Mobile Portal — List all assigned trips */
-driverRouter.get("/portal/jobs", async (req, res) => {
-  const driverId = req.query.driverId as string;
-  if (!driverId || !Types.ObjectId.isValid(driverId)) {
-    throw new AppError(400, "VALIDATION_ERROR", "Driver ID is required.");
-  }
+/** Driver Mobile Portal — current session profile (cookie or bearer token). */
+driverRouter.get("/me", authenticateDriver, async (req, res) => {
+  const { DriverModel } = await import("../models");
+  const d = await DriverModel.findById(req.driver!.id).select("employeeCode name phone experienceYears languages").lean();
+  if (!d) throw new AppError(404, "NOT_FOUND", "Driver not found.");
+  res.json({
+    driver: {
+      id: String(d._id),
+      employeeCode: d.employeeCode,
+      name: d.name,
+      phone: d.phone,
+      experienceYears: d.experienceYears,
+      languages: d.languages,
+    },
+  });
+});
 
-  const bookings = await BookingModel.find({ driverId: new Types.ObjectId(driverId) })
+/** Driver Mobile Portal — sign out (clears the driver cookie). */
+driverRouter.post("/logout", (_req, res) => {
+  clearDriverCookie(res);
+  res.status(204).end();
+});
+
+/** Driver Mobile Portal — list the signed-in driver's assigned trips. */
+driverRouter.get("/portal/jobs", authenticateDriver, async (req, res) => {
+  const bookings = await BookingModel.find({ driverId: new Types.ObjectId(req.driver!.id) })
     .sort({ scheduledStart: -1 })
     .limit(50)
     .lean();
@@ -277,87 +316,158 @@ driverRouter.get("/portal/jobs", async (req, res) => {
   res.json({ items });
 });
 
-/** Driver Mobile Portal — Milestone updates & cash collection */
+/** Driver Mobile Portal — milestone updates & cash collection. */
 const portalActionSchema = z.object({
-  driverId: z.string(),
   action: z.enum(["confirm", "on-the-way", "arrived", "start", "end", "collect-cash"]),
   code: z.string().optional(),
   amount: z.number().optional(),
-  notes: z.string().optional(),
+  notes: z.string().trim().max(200).optional(),
 });
 
-driverRouter.post("/portal/jobs/:id/action", validate(portalActionSchema), async (req, res) => {
-  const id = String(req.params.id);
-  const { driverId, action, code, amount, notes } = req.body as z.infer<typeof portalActionSchema>;
-
-  if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(driverId)) {
-    throw new AppError(400, "VALIDATION_ERROR", "Invalid IDs.");
+function assertTripCode(
+  code: string | undefined,
+  hash: string | null | undefined,
+  prefix: "trip-start" | "trip-end",
+) {
+  const label = prefix === "trip-start" ? "START" : "END";
+  if (!code || !/^\d{4}$/.test(code)) {
+    throw new AppError(400, "VALIDATION_ERROR", `Enter the 4-digit ${label} code from the customer.`, { code: "required" });
   }
+  if (!hash) {
+    throw new AppError(409, "CONFLICT", `No ${label} code was issued for this trip. Contact dispatch.`);
+  }
+  if (!safeEqualHex(String(hash), hmac(`${prefix}|${code}`))) {
+    throw new AppError(400, "VALIDATION_ERROR", `Wrong ${label} code. Ask the customer to read it again.`, { code: "incorrect" });
+  }
+}
 
+driverRouter.post("/portal/jobs/:id/action", authenticateDriver, validate(portalActionSchema), async (req, res) => {
+  const id = String(req.params.id);
+  const { action, code, amount, notes } = req.body as z.infer<typeof portalActionSchema>;
+  if (!Types.ObjectId.isValid(id)) throw new AppError(400, "VALIDATION_ERROR", "Invalid booking id.");
+
+  // The driver id comes from the signed session, never from the request body.
   const b = await BookingModel.findOne({
     _id: new Types.ObjectId(id),
-    driverId: new Types.ObjectId(driverId),
+    driverId: new Types.ObjectId(req.driver!.id),
   }).select("+tripCodeStartHash +tripCodeEndHash");
 
   if (!b) throw new AppError(404, "NOT_FOUND", "Trip assignment not found.");
 
   const now = new Date();
+  const actor = { actorId: b.driverId, actorKind: "system" as const, at: now };
+  const from = b.status as BookingStatus;
 
   if (action === "confirm") {
-    b.contactLog.push({ channel: "whatsapp", result: "confirmed", notes: "Driver confirmed in driver portal", actorId: b.driverId, at: now } as never);
-    b.version += 1;
-    await b.save();
-    await audit({ actorKind: "system", action: "driver.confirm", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+    if (b.status !== "driver_assigned") throw new AppError(409, "CONFLICT", `This job is ${b.status}.`);
+    // Idempotent: a double-tap must not add a duplicate contact-log entry.
+    if (!(b.contactLog ?? []).some((c) => c.result === "confirmed")) {
+      b.contactLog.push({ channel: "whatsapp", result: "confirmed", notes: "Driver confirmed in driver portal", ...actor } as never);
+      b.version += 1;
+      await b.save();
+      await audit({ actorKind: "system", action: "driver.confirm", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+    }
   } else if (action === "on-the-way") {
+    if (!canTransition(from, "driver_on_the_way")) {
+      throw new AppError(409, "CONFLICT", `Mark on-the-way from driver_assigned (current: ${b.status}).`);
+    }
+    if (!(b.contactLog ?? []).some((c) => c.result === "confirmed")) {
+      throw new AppError(409, "CONFLICT", "Confirm the job first.");
+    }
     b.status = "driver_on_the_way";
-    b.statusHistory.push({ from: "driver_assigned", to: "driver_on_the_way", actorId: b.driverId, actorKind: "system", at: now } as never);
+    b.statusHistory.push({ from, to: "driver_on_the_way", ...actor } as never);
     b.version += 1;
     await b.save();
     await audit({ actorKind: "system", action: "driver.on_the_way", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
     notifyBookingEvent(String(b._id), "driver_on_the_way").catch(() => {});
   } else if (action === "arrived") {
-    b.driverArrivedAt = now as never;
-    b.version += 1;
-    await b.save();
-    await audit({ actorKind: "system", action: "driver.arrived", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
-  } else if (action === "start") {
-    if (b.tripCodeStartHash && code) {
-      if (!safeEqualHex(String(b.tripCodeStartHash), hmac(`trip-start|${code}`))) {
-        throw new AppError(400, "VALIDATION_ERROR", "Incorrect START code. Please verify with customer.");
-      }
+    if (!["driver_assigned", "driver_on_the_way"].includes(b.status)) {
+      throw new AppError(409, "CONFLICT", `This job is ${b.status}.`);
     }
+    if (!b.driverArrivedAt) {
+      b.driverArrivedAt = now as never;
+      b.version += 1;
+      await b.save();
+      await audit({ actorKind: "system", action: "driver.arrived", entityType: "Booking", entityId: String(b._id), reason: "driver portal" });
+    }
+  } else if (action === "start") {
+    if (!canTransition(from, "in_progress")) {
+      throw new AppError(409, "CONFLICT", `Mark on-the-way first (current: ${b.status}).`);
+    }
+    // A code is mandatory: a missing hash can no longer be bypassed.
+    assertTripCode(code, b.tripCodeStartHash as string | undefined, "trip-start");
     b.status = "in_progress";
-    b.statusHistory.push({ from: "driver_on_the_way", to: "in_progress", actorId: b.driverId, actorKind: "system", at: now } as never);
+    b.statusHistory.push({ from, to: "in_progress", ...actor } as never);
     b.version += 1;
     await b.save();
-    await audit({ actorKind: "system", action: "driver.start", entityType: "Booking", entityId: String(b._id), reason: "start confirmed in portal" });
+    await audit({ actorKind: "system", action: "driver.start", entityType: "Booking", entityId: String(b._id), reason: "start code verified in portal" });
     notifyBookingEvent(String(b._id), "in_progress").catch(() => {});
   } else if (action === "end") {
-    if (b.tripCodeEndHash && code) {
-      if (!safeEqualHex(String(b.tripCodeEndHash), hmac(`trip-end|${code}`))) {
-        throw new AppError(400, "VALIDATION_ERROR", "Incorrect END code. Please verify with customer.");
-      }
+    if (b.status !== "in_progress") throw new AppError(409, "CONFLICT", `Start the trip first (current: ${b.status}).`);
+    if (b.tripEndedByDriverAt) {
+      // Idempotent: the trip is already ended and awaiting the admin final fare.
+      res.json({ success: true, status: b.status, tripEnded: true });
+      return;
     }
+    assertTripCode(code, b.tripCodeEndHash as string | undefined, "trip-end");
+    // The driver only marks the trip ended. The admin completes it with the
+    // final fare (the portal must not fabricate a completed fare).
     b.tripEndedByDriverAt = now as never;
-    b.status = "completed";
-    b.statusHistory.push({ from: "in_progress", to: "completed", actorId: b.driverId, actorKind: "system", at: now } as never);
     b.version += 1;
     await b.save();
-    await audit({ actorKind: "system", action: "driver.end", entityType: "Booking", entityId: String(b._id), reason: "trip ended in portal" });
-    notifyBookingEvent(String(b._id), "completed").catch(() => {});
+    await audit({ actorKind: "system", action: "driver.end", entityType: "Booking", entityId: String(b._id), reason: "end code verified in portal; awaiting admin final fare" });
   } else if (action === "collect-cash") {
-    const collectAmount = amount ?? b.finalFare ?? b.fareEstimate?.total ?? 0;
+    if (!b.tripEndedByDriverAt) throw new AppError(409, "CONFLICT", "End the trip before recording cash.");
+    if (b.status !== "in_progress" && b.status !== "completed") {
+      throw new AppError(409, "CONFLICT", `Cash cannot be collected for a ${b.status} trip.`);
+    }
     const { PaymentModel } = await import("../models");
-    await PaymentModel.create({
-      bookingId: b._id,
-      amount: collectAmount,
-      currency: "INR",
-      method: "cash",
-      status: "succeeded",
-      reference: notes || `Cash collected by driver (${b.bookingNumber})`,
-      recordedAt: now,
-    });
-    await audit({ actorKind: "system", action: "driver.collect_cash", entityType: "Booking", entityId: String(b._id), reason: `₹${collectAmount} cash collected` });
+    const existing = await PaymentModel.findOne({ bookingId: b._id, method: "cash", status: "succeeded" }).lean();
+    if (existing) throw new AppError(409, "CONFLICT", "Cash is already recorded for this booking.");
+    const fare = b.finalFare ?? b.fareEstimate?.total ?? 0;
+    const collectAmount = amount ?? fare;
+    if (!Number.isFinite(collectAmount) || collectAmount <= 0) {
+      throw new AppError(400, "VALIDATION_ERROR", "Enter a valid cash amount.");
+    }
+    if (fare > 0 && collectAmount > fare) {
+      throw new AppError(400, "VALIDATION_ERROR", `Cash cannot exceed the trip fare of ₹${fare}.`);
+    }
+    // Atomic claim: a double-tap (or two tabs) cannot record two cash payments.
+    const claimed = await BookingModel.findOneAndUpdate(
+      { _id: b._id, "cashSettlement.collectedByDriver": { $ne: true } },
+      {
+        $set: {
+          "cashSettlement.collectedByDriver": true,
+          "cashSettlement.collectedAmount": collectAmount,
+          "cashSettlement.collectedAt": now,
+        },
+        $inc: { version: 1 },
+      },
+      { new: false },
+    );
+    if (!claimed) throw new AppError(409, "CONFLICT", "Cash is already recorded for this booking.");
+    try {
+      await PaymentModel.create({
+        bookingId: b._id,
+        amount: collectAmount,
+        currency: "INR",
+        method: "cash",
+        status: "succeeded",
+        reference: notes || `Cash collected by driver (${b.bookingNumber})`,
+        recordedAt: now,
+      });
+    } catch (e) {
+      // Roll the claim back if the ledger write failed.
+      await BookingModel.updateOne(
+        { _id: b._id },
+        {
+          $set: { "cashSettlement.collectedByDriver": false },
+          $unset: { "cashSettlement.collectedAmount": 1, "cashSettlement.collectedAt": 1 },
+        },
+      ).catch(() => {});
+      throw e;
+    }
+    await audit({ actorKind: "system", action: "driver.collect_cash", entityType: "Booking", entityId: String(b._id), reason: `₹${collectAmount} cash collected by driver` });
   }
 
   res.json({ success: true, status: b.status, tripEnded: Boolean(b.tripEndedByDriverAt) });

@@ -7,7 +7,7 @@
 
 ## 1. Product summary
 
-Droovee is a 24×7 company-managed driver-booking service in **Bhubaneswar, Odisha (IN)**. The company employs salaried drivers who drive the **customer's own car**. Customers book on the web or the Android app. Admin reviews requests, checks driver availability, assigns a driver manually, and contacts the driver by phone or WhatsApp. There is no driver app and no driver marketplace or auto-dispatch in the first release.
+Droovee is a 24×7 company-managed driver-booking service in **Bhubaneswar, Odisha (IN)**. The company employs its own full-time drivers who drive the **customer's own car**. Customers book on the web or the Android app. Admin reviews requests, checks driver availability, assigns a driver manually, and contacts the driver by phone or WhatsApp. There is no driver app and no driver marketplace or auto-dispatch in the first release.
 
 **First release surfaces:** customer website (responsive), Android customer app, admin web dashboard.
 **Excluded:** iOS app, driver app, referral/loyalty, live GPS tracking, route optimisation, automated payroll.

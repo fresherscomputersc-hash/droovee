@@ -72,7 +72,7 @@ const staffSchema = new Schema(
 );
 export const StaffModel = model("Staff", staffSchema);
 
-// ---------- Drivers (salaried employees) ----------
+// ---------- Drivers (company employees) ----------
 const driverSchema = new Schema(
   {
     employeeCode: { type: String, required: true, unique: true, trim: true },
@@ -91,6 +91,11 @@ const driverSchema = new Schema(
     photoUrl: { type: String },
     experienceYears: { type: Number, min: 0, max: 60 },
     languages: [{ type: String, enum: ["odia", "hindi", "english"] }],
+    /** Hashed 6-digit PIN for the driver mobile portal. Never selected by default. */
+    portalPinHash: { type: String, select: false },
+    portalPinSetAt: { type: Date },
+    /** Bumped when the portal PIN is reset: outstanding driver tokens stop working. */
+    tokenVersion: { type: Number, default: 0 },
     // Phase 5: hiring checklist (ID, licence, police verification, test drive, references, conduct)
     hiring: {
       idProof: { done: { type: Boolean, default: false }, at: Date },

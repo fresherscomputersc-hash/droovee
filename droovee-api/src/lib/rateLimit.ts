@@ -64,3 +64,16 @@ export const driverLimiter = (): RateLimitRequestHandler =>
     return token ? `driver:${token}` : ipKeyGenerator(req.ip ?? "");
   });
 
+/**
+ * Per-driver portal login throttle: 10 PIN attempts per identifier per 15 min.
+ * Keyed on the identifier (not just IP) so rotating IPs cannot brute-force a PIN.
+ */
+export const driverLoginLimiter = (): RateLimitRequestHandler =>
+  make(WINDOW, 10, (req) => {
+    const b = req.body as { identifier?: unknown } | undefined;
+    const id = String(b?.identifier ?? "")
+      .toLowerCase()
+      .trim();
+    return id ? `driver-login:${id}` : ipKeyGenerator(req.ip ?? "");
+  });
+

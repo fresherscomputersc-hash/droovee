@@ -6,10 +6,12 @@ import { audit } from "./audit";
 import { Types } from "mongoose";
 
 export type SubjectKind = "customer" | "staff";
+/** Access tokens may also be issued to drivers (portal only; no refresh tokens). */
+export type AccessKind = SubjectKind | "driver";
 
 export interface AccessClaims {
   sub: string;
-  kind: SubjectKind;
+  kind: AccessKind;
   /** Must match the subject's tokenVersion (bumped on disable/role change). Absent = 0 (pre-version tokens). */
   v?: number;
 }
@@ -26,14 +28,17 @@ export function safeEqualHex(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-export function signAccess(claims: AccessClaims): string {
+export function signAccess(claims: AccessClaims, ttlSeconds?: number): string {
   // config.jwtAccessSecret throws if JWT_ACCESS_SECRET is missing — fail closed, no fallback.
-  return jwt.sign(claims, config.jwtAccessSecret, { expiresIn: config.accessTokenTtlSeconds, algorithm: "HS256" });
+  return jwt.sign(claims, config.jwtAccessSecret, {
+    expiresIn: ttlSeconds ?? config.accessTokenTtlSeconds,
+    algorithm: "HS256",
+  });
 }
 
 export function verifyAccess(token: string): AccessClaims {
   const payload = jwt.verify(token, config.jwtAccessSecret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
-  return { sub: String(payload.sub), kind: payload.kind as SubjectKind, v: typeof payload.v === "number" ? payload.v : undefined };
+  return { sub: String(payload.sub), kind: payload.kind as AccessKind, v: typeof payload.v === "number" ? payload.v : undefined };
 }
 
 /** Issues a new opaque refresh token and stores only its hash. */

@@ -32,40 +32,53 @@ export default function DriverDashboardPage() {
   const [cashPromptJob, setCashPromptJob] = useState<{ id: string; fare: number } | null>(null);
   const [cashAmount, setCashAmount] = useState<number>(0);
 
+  // Validate the httpOnly driver session with the API (never trust localStorage alone).
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("droovee_driver_session");
-      if (!stored) {
+    let cancelled = false;
+    api<{ driver: DriverSession }>("/driver/me", { auth: false })
+      .then((res) => {
+        if (cancelled) return;
+        setDriver(res.driver);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("droovee_driver_session", JSON.stringify(res.driver));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) router.replace("/driver/login");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const loadJobs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api<{ items: any[] }>("/driver/portal/jobs", { auth: false });
+      setJobs(res.items);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
         router.replace("/driver/login");
         return;
       }
-      try {
-        setDriver(JSON.parse(stored));
-      } catch {
-        router.replace("/driver/login");
-      }
-    }
-  }, [router]);
-
-  const loadJobs = useCallback(async (driverId: string) => {
-    setLoading(true);
-    try {
-      const res = await api<{ items: any[] }>(`/driver/portal/jobs?driverId=${driverId}`, { auth: false });
-      setJobs(res.items);
-    } catch (err) {
       setError("Could not load your trips. Please refresh.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (driver?.id) {
-      loadJobs(driver.id);
+      loadJobs();
     }
   }, [driver, loadJobs]);
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    try {
+      await api("/driver/logout", { method: "POST", auth: false });
+    } catch {
+      // The cookie may already be gone; clearing local state is still correct.
+    }
     if (typeof window !== "undefined") {
       localStorage.removeItem("droovee_driver_session");
     }
@@ -85,7 +98,6 @@ export default function DriverDashboardPage() {
       await api(`/driver/portal/jobs/${bookingId}/action`, {
         method: "POST",
         body: {
-          driverId: driver.id,
           action,
           ...(extra?.code ? { code: extra.code } : {}),
           ...(extra?.amount != null ? { amount: extra.amount } : {}),
@@ -97,15 +109,19 @@ export default function DriverDashboardPage() {
       if (action === "on-the-way") setNotice("Marked on the way to customer pickup.");
       if (action === "arrived") setNotice("Marked arrived at pickup location.");
       if (action === "start") setNotice("Trip started successfully!");
-      if (action === "end") setNotice("Trip completed!");
+      if (action === "end") setNotice("Trip ended. Dispatch is applying the final fare; no action needed.");
       if (action === "collect-cash") setNotice(`Recorded cash collection of ₹${extra?.amount}.`);
 
       setCodePromptJob(null);
       setInputCode("");
       setCashPromptJob(null);
 
-      await loadJobs(driver.id);
+      await loadJobs();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        router.replace("/driver/login");
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Action failed. Please try again.");
     } finally {
       setBusy(false);
@@ -114,8 +130,13 @@ export default function DriverDashboardPage() {
 
   if (!driver) return null;
 
-  const activeJobs = jobs.filter((j) => j.status !== "completed" && j.status !== "cancelled");
-  const completedJobs = jobs.filter((j) => j.status === "completed" || j.status === "cancelled");
+  // A driver-ended trip stays "in_progress" until an admin applies the final fare.
+  const activeJobs = jobs.filter(
+    (j) => j.status !== "completed" && j.status !== "cancelled" && !j.tripEnded
+  );
+  const completedJobs = jobs.filter(
+    (j) => j.status === "completed" || j.status === "cancelled" || j.tripEnded
+  );
   const displayedJobs = tab === "active" ? activeJobs : completedJobs;
 
   return (
@@ -185,7 +206,7 @@ export default function DriverDashboardPage() {
                 <p className="mt-1 text-xs text-slate-500">
                   {tab === "active"
                     ? "Dispatch will assign new bookings as they arrive. Check back soon."
-                    : "Completed trips will appear here with cash collection history."}
+                    : "Completed or driver-ended trips will appear here."}
                 </p>
               </div>
             </Card>
@@ -320,7 +341,7 @@ export default function DriverDashboardPage() {
                     </Button>
                   )}
 
-                  {job.status === "in_progress" && (
+                  {job.status === "in_progress" && !job.tripEnded && (
                     <Button
                       onClick={() => {
                         setCodePromptJob({ id: job.id, action: "end" });
@@ -329,12 +350,18 @@ export default function DriverDashboardPage() {
                       disabled={busy}
                       className="w-full bg-slate-900 hover:bg-slate-800"
                     >
-                      Complete Trip (Enter Customer END Code)
+                      End Trip (Enter Customer END Code)
                     </Button>
                   )}
 
+                  {job.tripEnded && job.status !== "completed" && (
+                    <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                      Trip ended. Dispatch is applying the final fare; no action needed.
+                    </div>
+                  )}
+
                   {/* Cash Collection Feature */}
-                  {job.status === "completed" && !job.cashCollected && (
+                  {job.tripEnded && (job.status === "in_progress" || job.status === "completed") && !job.cashCollected && (
                     <Button
                       onClick={() => {
                         setCashPromptJob({ id: job.id, fare: job.finalFare });

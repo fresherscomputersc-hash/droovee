@@ -9,6 +9,7 @@ import { api, ApiError } from "@/lib/api";
 export default function DriverLoginPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -19,13 +20,17 @@ export default function DriverLoginPage() {
       setError("Please enter your registered mobile number or Employee Code.");
       return;
     }
+    if (!/^\d{6}$/.test(pin)) {
+      setError("Please enter the 6-digit portal PIN issued by dispatch.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await api<{ driver: { id: string; employeeCode: string; name: string; phone: string } }>(
         "/driver/login",
         {
           method: "POST",
-          body: { identifier: identifier.trim() },
+          body: { identifier: identifier.trim(), pin },
           auth: false,
         }
       );
@@ -34,11 +39,15 @@ export default function DriverLoginPage() {
       }
       router.replace("/driver");
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 404
-          ? "No driver found with this phone number or employee code."
-          : "Could not log in. Please try again."
-      );
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Driver not found or PIN is incorrect. Check with dispatch if you need a new PIN.");
+      } else if (err instanceof ApiError && err.status === 403) {
+        setError(err.message);
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError("Too many attempts. Please wait 15 minutes and try again.");
+      } else {
+        setError("Could not log in. Please try again.");
+      }
     } finally {
       setBusy(false);
     }
@@ -58,7 +67,7 @@ export default function DriverLoginPage() {
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Driver Sign In</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Enter your mobile number or Droovee Employee Code to view your assigned trips.
+            Enter your mobile number or Droovee Employee Code and the 6-digit portal PIN issued by dispatch.
           </p>
 
           <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
@@ -68,6 +77,19 @@ export default function DriverLoginPage() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="Enter phone or code"
+                autoComplete="username"
+                required
+              />
+            </Field>
+            <Field label="6-digit Portal PIN *" hint="Issued by dispatch. Ask them to reset it if you don't have one.">
+              <Input
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="••••••"
+                inputMode="numeric"
+                autoComplete="current-password"
+                maxLength={6}
                 required
               />
             </Field>
