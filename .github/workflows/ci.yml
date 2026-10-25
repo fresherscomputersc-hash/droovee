@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   api:
-    name: API build and unit tests
+    name: API build and tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,11 +34,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Build API
-        run: npm run build
-
-      - name: Run unit tests
-        run: node --test dist/test/domain.test.js dist/test/lib.test.js
+      - name: Run API tests
+        run: npm test
 
   web:
     name: Web typecheck and build
@@ -65,7 +62,3 @@ jobs:
 
       - name: Build web app
         run: npm run build
-
-  # Integration tests are intentionally not required yet. They currently fail on
-  # pre-existing OTP-required registration expectations and should be re-enabled
-  # once those tests are updated.

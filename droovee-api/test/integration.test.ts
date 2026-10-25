@@ -74,6 +74,13 @@ function bookingBody(slot: { start: string; end: string }, extra: Json = {}) {
 }
 
 before(async () => {
+  process.env.NODE_ENV = "test";
+  // Keep integration tests deterministic even when a local .env enables OTP.
+  process.env.OTP_ENABLED = "false";
+  process.env.OTP_RESEND_COOLDOWN_SECONDS = "0";
+  process.env.TOKEN_PEPPER = "test-pepper";
+  process.env.JWT_ACCESS_SECRET = "test-access-secret";
+
   // CI/local default: throwaway in-memory replica set. On machines where the
   // memory-server binary starts too slowly, point at an external replica set:
   //   TEST_MONGODB_URI="mongodb://127.0.0.1:27017/droovee_test?replicaSet=rs0&directConnection=true"
@@ -85,15 +92,14 @@ before(async () => {
     process.env.MONGODB_URI = externalUri;
   } else {
     const { MongoMemoryReplSet } = await import("mongodb-memory-server");
-    const repl = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
+    const repl = await MongoMemoryReplSet.create({
+      replSet: { count: 1, storageEngine: "wiredTiger" },
+      // mongod can take well over its 10s default to become ready on Windows.
+      instanceOpts: [{ launchTimeout: 120000 }],
+    });
     mms = repl;
     process.env.MONGODB_URI = repl.getUri("droovee_test");
   }
-  process.env.NODE_ENV = "development";
-  process.env.OTP_RESEND_COOLDOWN_SECONDS = "0";
-  process.env.TOKEN_PEPPER = "test-pepper";
-  process.env.JWT_ACCESS_SECRET = "test-access-secret";
-
   await mongoose.connect(process.env.MONGODB_URI);
   // Clean slate: the in-memory DB is fresh, but an external TEST_MONGODB_URI
   // persists between runs — drop it so seeds never collide.
@@ -177,6 +183,9 @@ test("coupons: non-hourly service, below-minimum fare, and per-customer reuse ar
 });
 
 test("OTP endpoints are off while OTP sign-in is disabled", async () => {
+  const status = await call("GET", "/api/v1/auth/otp/status");
+  assert.equal(status.status, 200);
+  assert.equal(status.body.enabled, false);
   const r = await call("POST", "/api/v1/auth/otp/request", undefined, { phone: "9811111111", purpose: "register" });
   assert.equal(r.status, 404);
   const l = await call("POST", "/api/v1/auth/customer/login-otp", undefined, { phone: "9811111111", otp: "123456" });
@@ -197,8 +206,41 @@ test("booking: customer creates a booking with password-only login", async () =>
   assert.equal(created.status, 201, JSON.stringify(created.body));
   assert.match(created.body.bookingNumber, /^DRV-[A-HJ-NP-Z2-9]{8}$/);
   assert.equal(created.body.status, "requested");
-  // 2 h hourly: ₹149 base − ₹50 first-hour offer discount + ₹89 extra hour = ₹188
-  assert.equal(created.body.estimate.total, 188);
+  // 2 h hourly: ₹99 first-hour coupon + ₹129 extra hour = ₹228
+  assert.equal(created.body.estimate.total, 228);
+});
+
+test("alarm: customer bookings appear after the cursor; staff bookings are marked staff", async () => {
+  const owner = await staffLogin("owner@droovee.test");
+  // First poll is a baseline only: existing bookings must not alarm.
+  const baseline = await call("GET", "/api/v1/admin/notifications/new-bookings", owner);
+  assert.equal(baseline.status, 200);
+  assert.equal(baseline.body.items.length, 0);
+  const cursor = baseline.body.cursor as string;
+
+  const customer = await registerCustomer("9812300003", "Alarm Customer");
+  const customerBooking = await call("POST", "/api/v1/bookings", customer, bookingBody(SLOT_C));
+  assert.equal(customerBooking.status, 201, JSON.stringify(customerBooking.body));
+
+  const staffMade = await call("POST", "/api/v1/admin/bookings", owner, {
+    name: "Staff Made",
+    phone: "9812300004",
+    serviceType: "hourly",
+    pickupAddress: "Jayadev Vihar, Bhubaneswar",
+    scheduledStart: "2030-08-01T10:00:00+05:30",
+    durationHours: 2,
+    carModel: "Maruti Swift",
+    transmission: "manual",
+    source: "call",
+  });
+  assert.equal(staffMade.status, 201, JSON.stringify(staffMade.body));
+
+  const poll = await call("GET", `/api/v1/admin/notifications/new-bookings?after=${encodeURIComponent(cursor)}`, owner);
+  assert.equal(poll.status, 200);
+  const items = poll.body.items as Json[];
+  assert.equal(items.find((b) => b.id === customerBooking.body.id)?.origin, "customer");
+  assert.equal(items.find((b) => b.id === staffMade.body.id)?.origin, "staff");
+  assert.equal(poll.body.cursor, staffMade.body.id);
 });
 
 test("customers only see their own bookings (404 for others)", async () => {
@@ -347,6 +389,76 @@ test("cancellation can be re-requested with a corrected reason", async () => {
   const owner = await staffLogin("owner@droovee.test");
   const detail = await call("GET", `/api/v1/admin/bookings/${made.id}`, owner);
   assert.equal(detail.body.cancellation.requestReason, "plans changed again");
+});
+
+test("forgot/reset password issues a one-time link and invalidates the old password", async () => {
+  const email = "reset-flow@droovee.test";
+  const oldPassword = "Sup3r-secret-pass";
+  const newPassword = "N3w-secret-pass!";
+  const reg = await call("POST", "/api/v1/auth/customer/register", undefined, {
+    name: "Reset Flow",
+    phone: "9812300002",
+    email,
+    password: oldPassword,
+  });
+  assert.equal(reg.status, 201, JSON.stringify(reg.body));
+
+  const forgot = await call("POST", "/api/v1/auth/customer/forgot-password", undefined, { email });
+  assert.equal(forgot.status, 200, JSON.stringify(forgot.body));
+  assert.ok(forgot.body.debugLink, JSON.stringify(forgot.body));
+  const token = new URL(forgot.body.debugLink as string).searchParams.get("token");
+  assert.ok(token);
+
+  const reset = await call("POST", "/api/v1/auth/customer/reset-password", undefined, { token, password: newPassword });
+  assert.equal(reset.status, 200, JSON.stringify(reset.body));
+
+  const oldLogin = await call("POST", "/api/v1/auth/customer/login", undefined, { phone: "9812300002", password: oldPassword });
+  assert.equal(oldLogin.status, 401);
+  const newLogin = await call("POST", "/api/v1/auth/customer/login", undefined, { phone: "9812300002", password: newPassword });
+  assert.equal(newLogin.status, 200, JSON.stringify(newLogin.body));
+});
+
+test("guest can request cancellation from tracking with booking ID + mobile", async () => {
+  const phone = "9812300001";
+  const made = await call("POST", "/api/v1/bookings/guest", undefined, {
+    name: "Guest Canceller",
+    phone,
+    serviceType: "hourly",
+    immediate: false,
+    pickup: { address: "Jayadev Vihar, Bhubaneswar" },
+    scheduledStart: SLOT_C.start,
+    durationHours: 2,
+    carModel: "Maruti Swift",
+    transmission: "manual",
+    instructions: "Call on arrival",
+    paymentPreference: "cash_upi",
+    agreedToTerms: true,
+  });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+
+  // Wrong mobile must not reveal or modify the booking.
+  const wrong = await call("POST", "/api/v1/bookings/track/cancel", undefined, {
+    bookingNumber: made.body.bookingNumber,
+    phone: "9812300099",
+    reason: "plans changed",
+  });
+  assert.equal(wrong.status, 404);
+
+  const cancelled = await call("POST", "/api/v1/bookings/track/cancel", undefined, {
+    bookingNumber: made.body.bookingNumber,
+    phone,
+    reason: "plans changed",
+  });
+  assert.equal(cancelled.status, 202, JSON.stringify(cancelled.body));
+
+  const tracked = await call(
+    "GET",
+    `/api/v1/bookings/track?bookingNumber=${encodeURIComponent(made.body.bookingNumber)}&phone=${phone}`,
+  );
+  assert.equal(tracked.status, 200, JSON.stringify(tracked.body));
+  assert.equal(tracked.body.cancellationRequested, true);
+  assert.equal(tracked.body.cancellationPending, true);
+  assert.equal(tracked.body.cancelRequestReason, "plans changed");
 });
 
 test("weak passwords are rejected on register and staff create", async () => {

@@ -59,6 +59,12 @@ function BookForm() {
     if (s?.kind === "customer") setIsLoggedIn(true);
   }, []);
 
+  useEffect(() => {
+    api<{ enabled: boolean }>("/auth/otp/status", { auth: false })
+      .then((r) => setOtpEnabled(r.enabled))
+      .catch(() => {});
+  }, []);
+
   // Package / service deep links (?package=id, ?service=type)
   useEffect(() => {
     const svc = search.get("service");
@@ -94,7 +100,7 @@ function BookForm() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otpNeeded, setOtpNeeded] = useState(true); // cleared automatically if the server has OTP off
+  const [otpEnabled, setOtpEnabled] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
   const [sameWa, setSameWa] = useState(true);
   const [altContact, setAltContact] = useState("");
@@ -175,13 +181,13 @@ function BookForm() {
         auth: false,
       });
       setOtpSent(true);
-      setOtpNeeded(true);
       if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — real SMS in production).`);
       else setNotice("Code sent by SMS. Enter it below.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        // OTP_ENABLED=false: proceed without code.
-        setOtpNeeded(false);
+        // Status said OTP was on but the server has it off: hide the field and continue.
+        setOtpEnabled(false);
+        setOtpSent(false);
         setError(null);
       } else setError(err instanceof ApiError ? err.message : "Could not send code.");
     }
@@ -199,7 +205,7 @@ function BookForm() {
     if (name.trim().length < 2) local.name = "Enter your full name.";
     if (phone.trim().length < 10) local.phone = "Enter a valid mobile number.";
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) local.email = "Enter a valid email.";
-    if (otpNeeded && !/^\d{6}$/.test(otp)) local.otp = otpSent ? "Enter the 6-digit code." : "Tap Send code first, then enter the code.";
+    if (otpEnabled && !/^\d{6}$/.test(otp)) local.otp = otpSent ? "Enter the 6-digit code." : "Tap Send code first, then enter the code.";
     if (pickup.trim().length < 5) local.pickup = "Enter a pickup address (at least 5 characters).";
     if (needsDestination && destination.trim().length < 5) local.destination = "Enter the destination or office address.";
     if (carModel.trim().length < 2) local.carModel = "Enter your car model.";
@@ -217,7 +223,7 @@ function BookForm() {
     const body: Record<string, unknown> = {
       name: name.trim(),
       phone: phone.trim(),
-      ...(otpNeeded ? { otp } : {}),
+      ...(otpEnabled ? { otp } : {}),
       ...(pkg ? { packageId: pkg.id } : {}),
       ...(coupon.trim() && !pkg ? { couponCode: coupon.trim().toUpperCase() } : {}),
       ...(referral.trim() ? { referralCode: referral.trim().toUpperCase() } : {}),
@@ -378,36 +384,38 @@ function BookForm() {
                 <Field label="Mobile number *" error={fields.phone}>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" inputMode="tel" invalid={!!fields.phone} />
                 </Field>
-                <div className="md:col-span-2">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Mobile OTP *</span>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <Input
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        placeholder="6-digit code"
-                        inputMode="numeric"
-                        maxLength={6}
-                        invalid={!!fields.otp}
-                      />
+                {otpEnabled && (
+                  <div className="md:col-span-2">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Mobile OTP *</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <Input
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value)}
+                          placeholder="6-digit code"
+                          inputMode="numeric"
+                          maxLength={6}
+                          invalid={!!fields.otp}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={sendOtp}
+                        className="whitespace-nowrap px-4 py-2 shrink-0 h-[42px]"
+                      >
+                        {otpSent ? "Resend code" : "Send code"}
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={sendOtp}
-                      className="whitespace-nowrap px-4 py-2 shrink-0 h-[42px]"
-                    >
-                      {otpSent ? "Resend code" : "Send code"}
-                    </Button>
+                    {fields.otp ? (
+                      <p className="mt-1 text-xs text-rose-600">{fields.otp}</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Tap Send code, then enter the 6-digit code (demo code displayed in dev mode).
+                      </p>
+                    )}
                   </div>
-                  {fields.otp ? (
-                    <p className="mt-1 text-xs text-rose-600">{fields.otp}</p>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Tap Send code, then enter the 6-digit code (demo code displayed in dev mode).
-                    </p>
-                  )}
-                </div>
+                )}
                 <label className="flex items-center gap-2 text-sm md:col-span-2">
                   <input type="checkbox" checked={sameWa} onChange={(e) => setSameWa(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
                   WhatsApp same as mobile

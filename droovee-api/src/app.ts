@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import path from "path";
 import { randomUUID } from "crypto";
 import { authRouter } from "./routes/auth";
@@ -16,6 +17,7 @@ export function createApp() {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  app.use(compression());
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
 
@@ -43,12 +45,18 @@ export function createApp() {
 
   // Layered limits: global backstop, strict auth bucket, staff backstop.
   app.use("/api/v1", globalLimiter());
-  app.use("/api/v1/auth", authLimiter(), authRouter);
+  // Integration tests make many auth calls from one IP; keep their rate limit
+  // deterministic without weakening the production auth bucket.
+  const authLimit = process.env.NODE_ENV === "test" ? (_req: Request, _res: Response, next: NextFunction) => next() : authLimiter();
+  app.use("/api/v1/auth", authLimit, authRouter);
 
   app.use("/api/v1/pricing", pricingRouter);
 
   app.get("/api/v1/services", async (_req, res) => {
     const { version, settings } = await getActiveSettings();
+    // Public, read-mostly catalogue. A short CDN/browser cache keeps the
+    // landing page warm without making settings changes invisible.
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json({
       settingsVersion: version,
       services: SERVICE_TYPES.map((t) => ({ type: t, rates: settings.pricing.services[t] })),
@@ -61,6 +69,7 @@ export function createApp() {
   app.get("/api/v1/business", async (_req, res) => {
     const { BusinessModel } = await import("./models");
     const b = await BusinessModel.findOne().sort({ updatedAt: -1 }).lean();
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
     if (!b) return res.json({});
     res.json({
       name: b.name,

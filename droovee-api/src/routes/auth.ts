@@ -25,6 +25,11 @@ const otpOff = () => {
 
 export const authRouter = Router();
 
+/** Public capability flag so sign-in/booking forms only show OTP when it is actually available. */
+authRouter.get("/otp/status", (_req, res) => {
+  res.json({ enabled: config.otpEnabled });
+});
+
 const phoneField = z.string().transform((v, ctx) => {
   const n = normalisePhone(v);
   if (!n) ctx.addIssue({ code: "custom", message: "Enter a valid Indian mobile number." });

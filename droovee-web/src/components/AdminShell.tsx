@@ -5,6 +5,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { getSession, setSession, Session } from "@/lib/session";
 import { api, setAccessToken } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/format";
+import { AlarmToggle, NewBookingAlarm } from "@/components/NewBookingAlarm";
 
 // Navigation is for usability only. The API enforces permissions on every call.
 const NAV: { href: string; label: string; perm?: string }[] = [
@@ -18,7 +19,6 @@ const NAV: { href: string; label: string; perm?: string }[] = [
   { href: "/admin/referrals", label: "Referrals", perm: "bookings:read" },
   { href: "/admin/reports", label: "Reports", perm: "reports:read" },
   { href: "/admin/feedback", label: "Feedback", perm: "bookings:read" },
-  { href: "/admin/business", label: "Business", perm: "pricing:write" },
   { href: "/admin/tickets", label: "Support tickets", perm: "tickets:read" },
   { href: "/admin/pricing", label: "Pricing & settings", perm: "pricing:write" },
   { href: "/admin/staff", label: "Staff & roles", perm: "staff:manage" },
@@ -64,6 +64,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <p className="text-xs text-slate-400">{ROLE_LABEL[session.role ?? ""] ?? session.role}</p>
           </div>
           <div className="flex items-center gap-3">
+            <AlarmToggle />
             <button onClick={signOut} className="text-xs text-slate-400 hover:text-white md:mt-3">Sign out</button>
             <button onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu" className="grid h-9 w-9 place-items-center rounded-lg text-slate-200 hover:bg-slate-800 md:hidden">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" /></svg>
@@ -87,6 +88,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="min-w-0 flex-1 p-4 md:p-8">{children}</div>
+      <NewBookingAlarm />
     </div>
   );
 }

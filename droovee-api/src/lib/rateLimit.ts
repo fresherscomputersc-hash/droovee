@@ -47,6 +47,14 @@ export const loginLimiter = (): RateLimitRequestHandler =>
 /** Coupon-guessing / estimate-scraping protection (estimate is unauthenticated). */
 export const estimateLimiter = (): RateLimitRequestHandler => make(WINDOW, 120);
 
+/** Public guest cancellation requests: throttle by booking ID to prevent spam. */
+export const cancellationLimiter = (): RateLimitRequestHandler =>
+  make(WINDOW, 20, (req) => {
+    const b = req.body as { bookingNumber?: unknown } | undefined;
+    const bookingNumber = String(b?.bookingNumber ?? "").toUpperCase().trim();
+    return bookingNumber ? `cancel:${bookingNumber}` : ipKeyGenerator(req.ip ?? "");
+  });
+
 /** Booking-creation spam protection, keyed by authenticated customer. */
 export const bookingCreateLimiter = (): RateLimitRequestHandler =>
   make(WINDOW, 60, (req) => {
@@ -54,8 +62,12 @@ export const bookingCreateLimiter = (): RateLimitRequestHandler =>
     return p?.id ?? ipKeyGenerator(req.ip ?? "");
   });
 
-/** Backstop for staff console traffic (lists + mutations). */
-export const adminLimiter = (): RateLimitRequestHandler => make(WINDOW, 200);
+/**
+ * Backstop for staff console traffic (lists + mutations + the 15s new-booking
+ * poll). 600 / 15 min leaves room for several open admin tabs without making
+ * the limiter the limiting factor.
+ */
+export const adminLimiter = (): RateLimitRequestHandler => make(WINDOW, 600);
 
 /** Driver surface limiter: 60 requests per minute keyed by token or IP (DR-SEC-004). */
 export const driverLimiter = (): RateLimitRequestHandler =>
@@ -76,4 +88,3 @@ export const driverLoginLimiter = (): RateLimitRequestHandler =>
       .trim();
     return id ? `driver-login:${id}` : ipKeyGenerator(req.ip ?? "");
   });
-

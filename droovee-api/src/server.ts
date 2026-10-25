@@ -1,15 +1,15 @@
 import mongoose from "mongoose";
 import { config, assertRequiredConfig } from "./config";
 import { createApp } from "./app";
-import { BookingModel, CustomerModel, DriverModel } from "./models";
 import { listUnconfirmed } from "./domain/settings";
 import { getActiveSettings } from "./services/settings";
 
 async function main() {
   assertRequiredConfig();
-  await mongoose.connect(config.mongoUri);
-  // Indexes are created by Mongoose on connect. Production should run migrations explicitly.
-  await Promise.all([BookingModel.syncIndexes(), CustomerModel.syncIndexes(), DriverModel.syncIndexes()]);
+  // Index creation is explicit in production (`npm run db:indexes`), so a cold
+  // start is a connect + read, not a full index sync. Local development keeps
+  // Mongoose's automatic index creation for convenience.
+  await mongoose.connect(config.mongoUri, { autoIndex: config.env !== "production" });
 
   const { settings } = await getActiveSettings();
   const open = listUnconfirmed(settings);
