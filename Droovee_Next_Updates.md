@@ -122,6 +122,7 @@
 - Tests: **42 passing** (25 unit + 17 integration) ✅
 - Integration tests use an in-memory MongoDB replica set by default, with a 120s startup allowance on Windows; `TEST_MONGODB_URI` can point them at an external test database.
 - Manual alarm audio check: pending — needs a real browser with sound enabled.
+- Local browser smoke test (2026-10-25): dashboard cleanup, guest alarm banner, mute/acknowledge, reload persistence, and 10-second repeat all behaved correctly; actual sound and the 2-minute cutoff still need the owner’s check.
 
 ### Known local caveat
 - The clean release branch keeps `PublicShell.tsx` and `Calculator.tsx` at the production baseline. The paused landing-page preview work lives on `release/next`, not on `release/2026-10-25`.

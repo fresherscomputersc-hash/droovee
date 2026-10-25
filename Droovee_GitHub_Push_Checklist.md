@@ -84,19 +84,27 @@ Vercel applies environment changes on the next deployment. Setting them before t
 
 ### 1.4 Manual browser checks
 
-Use a local API + web server and a real browser:
+Local smoke test on 2026-10-25 (in-memory Mongo + local API/web) verified:
 
-- [ ] Owner login works.
-- [ ] Dashboard has no revenue cards.
-- [ ] Dashboard has no Company/Hiring card.
-- [ ] Sidebar has no **Business** entry.
-- [ ] `Payments & reports` and `Reports` remain.
-- [ ] Guest booking triggers the alarm banner.
-- [ ] Staff-created booking does **not** trigger the alarm.
+- Staff login and admin dashboard load.
+- No dashboard revenue cards, no Company/Hiring panel, and no **Business** sidebar entry; `Payments & reports` and `Reports` remain.
+- A guest booking produced the alarm banner with the correct booking number; a staff booking is classified as `staff` by the API.
+- The alarm audio context unlocked after a click and created repeated tones at the 10-second interval (instrumented count; actual sound still needs the owner’s ears).
+- Mute kept the banner but produced no audio; acknowledge/view cleared the banner; reload restored the unacknowledged banner.
+
+Use a local API + web server and a real browser for the remaining checks:
+
+- [x] Owner login works.
+- [x] Dashboard has no revenue cards.
+- [x] Dashboard has no Company/Hiring card.
+- [x] Sidebar has no **Business** entry.
+- [x] `Payments & reports` and `Reports` remain.
+- [x] Guest booking triggers the alarm banner.
+- [ ] Staff-created booking does **not** trigger the alarm in the browser.
 - [ ] Click once in the console, then confirm the alarm sound plays.
 - [ ] Sound repeats every 10 seconds and stops after 2 minutes.
-- [ ] Mute silences the alarm but keeps the banner.
-- [ ] Acknowledge clears the banner and the queue.
+- [x] Mute silences the alarm but keeps the banner.
+- [x] Acknowledge clears the banner and the queue.
 - [ ] Reload with an unacknowledged banner restores the banner and shows **Enable sound**.
 - [ ] Two tabs show the banner; acknowledging in one clears it in both.
 - [ ] Guest cancellation rejects a mismatched mobile number and accepts a matching one.
