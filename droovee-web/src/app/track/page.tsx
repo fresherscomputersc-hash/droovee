@@ -2,7 +2,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
-import { Alert, Button, Card, Field, Input, StatusBadge } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, StatusBadge, Textarea } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { dateTime, money, SERVICE_LABEL, STATUS_LABEL } from "@/lib/format";
 import { DriverCard, EmergencyCard, HelpOnWhatsApp } from "@/components/Trust";
@@ -44,7 +44,7 @@ function BookingCard({ b }: { b: any }) {
           <div className="flex justify-between"><dt className="text-slate-500">Service</dt><dd className="font-medium">{SERVICE_LABEL[b.serviceType] ?? b.serviceType}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">Start</dt><dd className="font-medium">{dateTime(b.scheduledStart)}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">Pickup</dt><dd className="max-w-60 text-right font-medium">{b.pickup?.address}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Fare</dt><dd className="font-medium">{money(b.finalFare ?? b.estimate?.total)} <span className="text-xs text-slate-500">(estimate)</span></dd></div>
+          <div className="flex justify-between"><dt className="text-slate-500">Fare</dt><dd className="font-medium">{money(b.finalFare ?? b.estimate?.total)}{b.finalFare == null && <span className="text-xs text-slate-500"> (estimate)</span>}</dd></div>
         </dl>
         <HelpOnWhatsApp bookingNumber={b.bookingNumber} />
       </Card>
@@ -79,6 +79,79 @@ function MiniBookingCard({ b, onSelect }: { b: any; onSelect: () => void }) {
   );
 }
 
+function CancelCard({ b, defaultPhone, onRefresh }: { b: any; defaultPhone: string; onRefresh: (phone: string) => Promise<void> }) {
+  const [phone, setPhone] = useState(defaultPhone);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const blocked = ["completed", "cancelled", "rejected", "customer_no_show"].includes(b.status);
+  if (blocked) return null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (phone.trim().length < 10) {
+      setError("Enter the mobile number used for this booking.");
+      return;
+    }
+    if (reason.trim().length < 3) {
+      setError("Tell us why you want to cancel (at least 3 characters).");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api("/bookings/track/cancel", {
+        method: "POST",
+        auth: false,
+        body: { bookingNumber: b.bookingNumber, phone: phone.trim(), reason: reason.trim() },
+      });
+      setNotice(b.cancellationPending ? "Cancellation request updated." : "Cancellation request sent. Our team will confirm any fees or refund.");
+      setReason("");
+      await onRefresh(phone.trim());
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) setError("That booking ID and mobile number don't match.");
+      else if (err instanceof ApiError && err.status === 409) setError(err.message);
+      else setError("Could not send the cancellation request. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="font-semibold">Cancel booking</h2>
+      {b.cancellationRequested && !b.cancellationPending ? (
+        <p className="mt-3 text-sm text-slate-600">You've asked to cancel this booking. Our team will confirm any fee or refund.</p>
+      ) : (
+        <>
+          {b.cancellationPending && (
+            <div className="mt-3">
+              <Alert tone="warn">
+                You've asked to cancel this booking{b.cancelRequestReason ? <>: “{b.cancelRequestReason}”</> : "."} Our team will confirm any fee or refund.
+              </Alert>
+            </div>
+          )}
+          {notice && <div className="mt-3"><Alert tone="success">{notice}</Alert></div>}
+          {error && <div className="mt-3"><Alert>{error}</Alert></div>}
+          <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
+            <Field label="Mobile number on the booking *">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" inputMode="tel" autoComplete="tel" />
+            </Field>
+            <Field label={b.cancellationPending ? "Update your reason" : "Reason"}>
+              <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={b.cancelRequestReason ?? "Why do you need to cancel?"} />
+            </Field>
+            <Button type="submit" variant="danger" disabled={busy}>{busy ? "Sending…" : b.cancellationPending ? "Update request" : "Request cancellation"}</Button>
+            <p className="text-xs text-slate-500">Cancellation fees and refunds follow our policy. Our team decides each request.</p>
+          </form>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function TrackForm() {
   const search = useSearchParams();
   const [mode, setMode] = useState<"id" | "phone">(search.get("phone") ? "phone" : "id");
@@ -89,14 +162,15 @@ function TrackForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function lookupByBookingId(bNum: string) {
+  async function lookupByBookingId(bNum: string, phoneOverride?: string) {
     setError(null);
     setSingle(null);
     setBusy(true);
     try {
       const q = new URLSearchParams();
       q.set("bookingNumber", bNum.trim());
-      if (phone.trim()) q.set("phone", phone.trim());
+      const lookupPhone = phoneOverride ?? phone;
+      if (lookupPhone.trim()) q.set("phone", lookupPhone.trim());
       const res = await api(`/bookings/track?${q.toString()}`, { auth: false });
       setSingle(res);
       setNumber(bNum);
@@ -178,7 +252,16 @@ function TrackForm() {
         </form>
       </Card>
       {error && <Alert>{error}</Alert>}
-      {single && <BookingCard b={single} />}
+      {single && (
+        <>
+          <BookingCard b={single} />
+          <CancelCard
+            b={single}
+            defaultPhone={phone}
+            onRefresh={(usedPhone) => lookupByBookingId(single.bookingNumber, usedPhone)}
+          />
+        </>
+      )}
       {list && !single && (
         <div className="space-y-4">
           <p className="text-sm font-medium text-slate-700">{list.length} booking{list.length === 1 ? "" : "s"} found for this number:</p>

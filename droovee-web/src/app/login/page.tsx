@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -15,6 +15,7 @@ function LoginForm() {
   const rawNext = params.get("next") || "/bookings";
   const next = /^\/[^/\\]/.test(rawNext) ? rawNext : "/bookings";
   const [mode, setMode] = useState<"password" | "otp">("password");
+  const [otpEnabled, setOtpEnabled] = useState(false);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -23,6 +24,16 @@ function LoginForm() {
   const [notice, setNotice] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<{ enabled: boolean }>("/auth/otp/status", { auth: false })
+      .then((r) => setOtpEnabled(r.enabled))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!otpEnabled) setMode("password");
+  }, [otpEnabled]);
 
   function done() {
     setSession({ kind: "customer" });
@@ -86,19 +97,21 @@ function LoginForm() {
     <div className="mx-auto max-w-md px-4 py-16">
       <Card>
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-600">Use your mobile number and password — or a one-time code.</p>
-        <div className="mt-4 flex gap-2">
-          {(["password", "otp"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => { setMode(m); setError(null); setNotice(null); }}
-              className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${mode === m ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
-            >
-              {m === "password" ? "Password" : "OTP"}
-            </button>
-          ))}
-        </div>
+        <p className="mt-1 text-sm text-slate-600">Use your mobile number and password{otpEnabled ? " — or a one-time code" : ""}.</p>
+        {otpEnabled && (
+          <div className="mt-4 flex gap-2">
+            {(["password", "otp"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMode(m); setError(null); setNotice(null); }}
+                className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${mode === m ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
+              >
+                {m === "password" ? "Password" : "OTP"}
+              </button>
+            ))}
+          </div>
+        )}
         <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
           {error && <Alert>{error}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}

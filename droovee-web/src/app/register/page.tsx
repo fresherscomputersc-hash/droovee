@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -15,7 +15,13 @@ export default function RegisterPage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [otpNeeded, setOtpNeeded] = useState(true); // cleared automatically if the server has OTP off
+  const [otpEnabled, setOtpEnabled] = useState(false);
+
+  useEffect(() => {
+    api<{ enabled: boolean }>("/auth/otp/status", { auth: false })
+      .then((r) => setOtpEnabled(r.enabled))
+      .catch(() => {});
+  }, []);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
@@ -33,12 +39,13 @@ export default function RegisterPage() {
         body: { phone: form.phone.trim(), purpose: "register" },
       });
       setOtpSent(true);
-      setOtpNeeded(true);
+      setOtpEnabled(true);
       if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — real SMS in production).`);
       else setNotice("Code sent by SMS. Enter it below.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setOtpNeeded(false); // server has OTP off — register without code
+        setOtpEnabled(false); // server has OTP off — register without code
+        setOtpSent(false);
       } else setError(err instanceof ApiError ? err.message : "Could not send code.");
     }
   }
@@ -50,7 +57,7 @@ export default function RegisterPage() {
     const localErrors: Record<string, string> = {};
     if (form.password.length < 10) localErrors.password = "Use at least 10 characters.";
     if (form.password !== form.confirm) localErrors.confirm = "Passwords do not match.";
-    if (otpNeeded && !/^\d{6}$/.test(form.otp)) localErrors.otp = otpSent ? "Enter the 6-digit code." : "Tap Send code first, then enter the code.";
+    if (otpEnabled && !/^\d{6}$/.test(form.otp)) localErrors.otp = otpSent ? "Enter the 6-digit code." : "Tap Send code first, then enter the code.";
     setFields(localErrors);
     if (Object.keys(localErrors).length) return;
 
@@ -59,7 +66,7 @@ export default function RegisterPage() {
       await api("/auth/customer/register", {
         method: "POST",
         auth: false,
-        body: { name: form.name, phone: form.phone, password: form.password, email: form.email || undefined, ...(otpNeeded ? { otp: form.otp } : {}) },
+        body: { name: form.name, phone: form.phone, password: form.password, email: form.email || undefined, ...(otpEnabled ? { otp: form.otp } : {}) },
       });
       setSession({ kind: "customer" });
       router.replace("/book/user");
@@ -88,14 +95,16 @@ export default function RegisterPage() {
             <Field label="Mobile number" error={fields.phone} hint="Indian mobile number. We use it to contact you about your booking.">
               <Input value={form.phone} onChange={set("phone")} inputMode="tel" autoComplete="tel" invalid={!!fields.phone} required />
             </Field>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-40 flex-1">
-                <Field label="Mobile OTP *" error={fields.otp}>
-                  <Input value={form.otp} onChange={set("otp")} placeholder="6-digit code" inputMode="numeric" maxLength={6} invalid={!!fields.otp} />
-                </Field>
+            {otpEnabled && (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-40 flex-1">
+                  <Field label="Mobile OTP *" error={fields.otp}>
+                    <Input value={form.otp} onChange={set("otp")} placeholder="6-digit code" inputMode="numeric" maxLength={6} invalid={!!fields.otp} />
+                  </Field>
+                </div>
+                <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
               </div>
-              <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
-            </div>
+            )}
             <Field label="Email (optional)" error={fields.email}>
               <Input type="email" value={form.email} onChange={set("email")} autoComplete="email" invalid={!!fields.email} />
             </Field>

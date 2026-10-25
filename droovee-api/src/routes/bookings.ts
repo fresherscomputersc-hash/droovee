@@ -13,7 +13,7 @@ import { bookingEnd } from "../domain/availability";
 import { getActiveSettings } from "../services/settings";
 import { validateCoupon, consumeCoupon, assertCouponMinAmount, alreadyRedeemed, recordRedemption, releaseCouponUse, type ValidCoupon } from "../services/coupons";
 import { SERVICE_TYPES } from "./pricing";
-import { bookingCreateLimiter, estimateLimiter } from "../lib/rateLimit";
+import { bookingCreateLimiter, cancellationLimiter, estimateLimiter } from "../lib/rateLimit";
 import { BookingStatus } from "../domain/status";
 import { config } from "../config";
 import { verifyOtp } from "../services/otp";
@@ -341,17 +341,23 @@ bookingsRouter.get("/:id", authenticate, requireCustomer, async (req, res) => {
 
 /** Customer requests a cancellation. The admin decides fees and refunds (confirmed). */
 const cancelSchema = z.object({ reason: z.string().trim().min(3).max(500) });
-bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cancelSchema), async (req, res) => {
-  if (!Types.ObjectId.isValid(String(req.params.id))) throw new AppError(404, "NOT_FOUND", "Booking not found.");
-  const b = await BookingModel.findOne({ _id: String(String(req.params.id)), customerId: req.principal!.id });
-  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
-  if (["completed", "cancelled", "rejected", "customer_no_show"].includes(b.status)) {
-    throw new AppError(409, "CONFLICT", `This booking can no longer be cancelled (status: ${b.status}).`);
+const CANCELLATION_BLOCKED = ["completed", "cancelled", "rejected", "customer_no_show"];
+
+function ensureCancellable(status: string) {
+  if (CANCELLATION_BLOCKED.includes(status)) {
+    throw new AppError(409, "CONFLICT", `This booking can no longer be cancelled (status: ${status}).`);
   }
+}
+
+/**
+ * Record a cancellation request on a booking. Shared by signed-in customers
+ * and the public tracking flow (booking ID + matching mobile number).
+ */
+async function requestCancellation(b: any, reason: string, actorId: string) {
+  ensureCancellable(b.status);
   // Requesting twice is idempotent: a repeat POST updates the pending request
   // (e.g. corrected reason) and restarts the decision cycle. The audit log
   // keeps every request, so nothing is lost.
-  const reason = (req.body as z.infer<typeof cancelSchema>).reason;
   const prior = { ...(b.cancellation ?? {}) } as Record<string, unknown>;
   delete prior.decidedBy;
   delete prior.decidedAt;
@@ -359,13 +365,43 @@ bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cance
   b.version += 1;
   await b.save();
   await audit({
-    actorId: req.principal!.id,
+    actorId,
     actorKind: "customer",
     action: "booking.cancel_requested",
     entityType: "Booking",
     entityId: String(b._id),
     reason,
   });
+}
+
+/** Guest/no-account cancellation request: booking ID plus the mobile number on the booking. */
+const trackCancelSchema = z.object({
+  bookingNumber: z.string().trim().min(4).max(20),
+  phone: z.string().trim().min(6).max(20),
+  reason: z.string().trim().min(3).max(500),
+});
+// Registered before /:id/cancel so "track" is not parsed as a booking id.
+bookingsRouter.post("/track/cancel", cancellationLimiter(), validate(trackCancelSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof trackCancelSchema>;
+  const phone = normalisePhone(body.phone);
+  if (!phone) throw new AppError(400, "VALIDATION_ERROR", "Enter a valid Indian mobile number.", { phone: "invalid" });
+  const b = await BookingModel.findOne({ bookingNumber: body.bookingNumber.trim().toUpperCase() });
+  if (!b) throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
+  const snapshotPhone = normalisePhone(String((b.customerSnapshot as { phone?: string })?.phone ?? ""));
+  const altPhone = b.altContact ? normalisePhone(String(b.altContact)) : null;
+  if (snapshotPhone !== phone && altPhone !== phone) {
+    throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
+  }
+  await requestCancellation(b, body.reason, String(b.customerId));
+  res.status(202).json({ status: "cancellation_requested", bookingNumber: b.bookingNumber });
+});
+
+bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cancelSchema), async (req, res) => {
+  if (!Types.ObjectId.isValid(String(req.params.id))) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  const b = await BookingModel.findOne({ _id: String(String(req.params.id)), customerId: req.principal!.id });
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  const reason = (req.body as z.infer<typeof cancelSchema>).reason;
+  await requestCancellation(b, reason, req.principal!.id);
   res.status(202).json({ status: "cancellation_requested", bookingNumber: b.bookingNumber });
 });
 
