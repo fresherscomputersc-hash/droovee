@@ -27,7 +27,7 @@ import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
 import { maskPhone, newBookingNumber, normalisePhone } from "../lib/ids";
-import { canTransition, BookingStatus, BOOKING_STATUSES } from "../domain/status";
+import { canTransition, BookingStatus, BOOKING_STATUSES, TERMINAL_STATUSES } from "../domain/status";
 import { getActiveSettings } from "../services/settings";
 import { estimateFare } from "../domain/pricing";
 import type { ServiceType } from "../domain/pricing";import { bookingEnd } from "../domain/availability";
@@ -98,9 +98,8 @@ adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res)
   istNow.setUTCHours(0, 0, 0, 0);
   const dayStart = new Date(istNow.getTime() - 330 * 60_000);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  const weekStart = new Date(dayStart.getTime() - 6 * 86_400_000);
 
-  const [unassigned10, urgent, schedule, revenue, lowRatings, hiringGaps, business] = await Promise.all([
+  const [unassigned10, urgent, schedule, lowRatings, business] = await Promise.all([
     // Requested/confirmed, created >10 min ago, still no driver.
     BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, createdAt: { $lt: tenMinAgo } })
       .sort({ scheduledStart: 1 }).limit(50)
@@ -113,18 +112,11 @@ adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res)
     BookingModel.find({ scheduledStart: { $gte: dayStart, $lt: dayEnd }, status: { $nin: ["cancelled", "rejected"] } })
       .sort({ scheduledStart: 1 }).limit(200)
       .select("bookingNumber status scheduledStart customerSnapshot pickup driverId contactLog").lean(),
-    // Revenue today / this week, cash vs online (ledger = source of truth).
-    PaymentModel.aggregate([
-      { $match: { status: "succeeded", recordedAt: { $gte: weekStart } } },
-      { $group: { _id: { day: { $gte: ["$recordedAt", dayStart] }, method: "$method" }, total: { $sum: "$amount" } } },
-    ]),
     // Low ratings (1-2 stars, last 7 days) alert the owner.
     RatingModel.find({ stars: { $lte: 2 }, createdAt: { $gte: new Date(now.getTime() - 7 * 86_400_000) } })
       .sort({ createdAt: -1 }).limit(20)
       .populate("bookingId", "bookingNumber")
       .lean(),
-    // Active drivers with an incomplete hiring checklist.
-    DriverModel.find({ employmentStatus: "active" }).select("name employeeCode hiring").lean(),
     BusinessModel.findOne().sort({ updatedAt: -1 }).lean(),
   ]);
 
@@ -144,22 +136,6 @@ adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res)
     (b) => b.driver && !b.driverConfirmed && ["confirmed", "driver_assigned"].includes(b.status) && new Date(b.scheduledStart).getTime() < now.getTime() + 24 * 3_600_000,
   );
 
-  let todayCash = 0, todayOnline = 0, weekCash = 0, weekOnline = 0;
-  for (const r of revenue as { _id: { day: boolean; method: string }; total: number }[]) {
-    const online = r._id.method !== "cash";
-    if (r._id.day) {
-      if (online) todayOnline += r.total;
-      else todayCash += r.total;
-    }
-    if (online) weekOnline += r.total;
-    else weekCash += r.total;
-  }
-
-  const HIRING_KEYS = ["idProof", "licence", "policeVerification", "testDrive", "references", "codeOfConduct"];
-  const gaps = (hiringGaps as Record<string, any>[]).map((d) => {
-    const missing = HIRING_KEYS.filter((k) => !(d.hiring as Record<string, any> | undefined)?.[k]?.done);
-    return { id: String(d._id), name: d.name, employeeCode: d.employeeCode, missing };
-  }).filter((d) => d.missing.length > 0);
   const biz = business as { insuranceValidTill?: Date; insuranceProvider?: string } | null;
   const insuranceDaysLeft = biz?.insuranceValidTill ? Math.ceil((new Date(biz.insuranceValidTill).getTime() - now.getTime()) / 86_400_000) : null;
 
@@ -172,15 +148,56 @@ adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res)
       bookingNumber: (r.bookingId as { bookingNumber?: string } | null)?.bookingNumber,
       at: (r as { createdAt?: Date }).createdAt,
     })),
-    hiringGaps: gaps,
     insurance: biz ? { provider: biz.insuranceProvider, validTill: biz.insuranceValidTill, daysLeft: insuranceDaysLeft } : null,
     scheduleToday: scheduleView,
     remindersDue,
-    revenue: { today: { cash: todayCash, online: todayOnline }, week: { cash: weekCash, online: weekOnline } },
   });
 });
+
+/**
+ * Lightweight poll for the admin new-booking alarm.
+ * First call returns only a cursor (no alarm for existing bookings).
+ * Subsequent calls return bookings created after that cursor.
+ */
+const newBookingsQuery = z.object({
+  after: z.string().refine((v) => Types.ObjectId.isValid(v), "Invalid cursor").optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+adminRouter.get("/notifications/new-bookings", requirePermission("bookings:read"), validateQuery(newBookingsQuery), async (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof newBookingsQuery> }).validatedQuery;
+  if (!q.after) {
+    const latest = await BookingModel.findOne({}).sort({ _id: -1 }).select("_id").lean();
+    // With no bookings at all, start one second before "now" so a booking
+    // created during this same second is still greater than the cursor.
+    const cursor = latest?._id
+      ? String(latest._id)
+      : String(Types.ObjectId.createFromTime(Math.floor(Date.now() / 1000) - 1));
+    return res.json({ items: [], cursor, serverTime: new Date().toISOString() });
+  }
+  const rows = await BookingModel.find({ _id: { $gt: q.after } })
+    .sort({ _id: 1 })
+    .limit(q.limit)
+    .select("bookingNumber serviceType scheduledStart customerSnapshot.name createdAt statusHistory.actorKind")
+    .lean();
+  const cursor = rows.length ? String(rows[rows.length - 1]._id) : q.after;
+  res.json({
+    items: rows.map((b) => ({
+      id: String(b._id),
+      bookingNumber: b.bookingNumber,
+      serviceType: b.serviceType,
+      scheduledStart: b.scheduledStart,
+      customerName: b.customerSnapshot?.name ?? "",
+      createdAt: (b as { createdAt?: Date }).createdAt,
+      origin: (b.statusHistory?.[0] as { actorKind?: string } | undefined)?.actorKind === "staff" ? "staff" : "customer",
+    })),
+    cursor,
+    serverTime: new Date().toISOString(),
+  });
+});
+
 const listQuery = z.object({
   status: z.enum(BOOKING_STATUSES).optional(),
+  openOnly: z.enum(["true", "false"]).optional().transform((v) => v === "true"),
   bookingNumber: z.string().trim().max(20).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
@@ -198,14 +215,20 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
   const q = (req as unknown as { validatedQuery: z.infer<typeof listQuery> }).validatedQuery;
   const filter: Record<string, unknown> = {};
   if (q.status) filter.status = q.status;
+  else if (q.openOnly) filter.status = { $nin: TERMINAL_STATUSES };
   if (q.bookingNumber) filter.bookingNumber = q.bookingNumber.toUpperCase();
   if (q.from || q.to) filter.scheduledStart = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lt: q.to } : {}) };
   if (q.customerPhone) filter["customerSnapshot.phone"] = { $regex: q.customerPhone.replace(/\D/g, "") + "$" };
   const [items, total] = await Promise.all([
-    BookingModel.find(filter).sort({ scheduledStart: 1 }).skip((q.page - 1) * q.limit).limit(q.limit).lean(),
+    BookingModel.find(filter)
+      .sort({ scheduledStart: 1 })
+      .skip((q.page - 1) * q.limit)
+      .limit(q.limit)
+      .select("bookingNumber status serviceType customerSnapshot scheduledStart scheduledEnd driverId fareEstimate finalFare source createdAt version")
+      .lean(),
     BookingModel.countDocuments(filter),
   ]);
-  res.json({ ...pageOf(items.map((b) => adminBookingView(b, { maskPhone: true })), total, q.page, q.limit) });
+  res.json({ ...pageOf(items.map((b) => adminBookingSummary(b, { maskPhone: true })), total, q.page, q.limit) });
 });
 
 adminRouter.get("/bookings/:id", requirePermission("bookings:read"), async (req, res) => {
@@ -373,6 +396,27 @@ function adminBookingView(b: Record<string, any>, opts: { maskPhone?: boolean } 
     couponCode: b.couponCode ?? null,
     source: (b as Record<string, unknown>).source ?? "website",
     createdAt: b.createdAt,
+  };
+}
+
+function adminBookingSummary(b: Record<string, any>, opts: { maskPhone?: boolean } = {}) {
+  const phone = b.customerSnapshot?.phone as string | undefined;
+  return {
+    id: String(b._id),
+    bookingNumber: b.bookingNumber,
+    status: b.status,
+    serviceType: b.serviceType,
+    customer: b.customerSnapshot
+      ? { name: b.customerSnapshot.name, phone: opts.maskPhone && phone ? maskPhone(phone) : phone }
+      : b.customerSnapshot,
+    scheduledStart: b.scheduledStart,
+    scheduledEnd: b.scheduledEnd,
+    driverId: b.driverId ? String(b.driverId) : null,
+    fareEstimate: b.fareEstimate,
+    finalFare: b.finalFare ?? null,
+    source: b.source ?? "website",
+    createdAt: b.createdAt,
+    version: b.version,
   };
 }
 

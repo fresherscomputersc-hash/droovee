@@ -1,30 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Card, Empty, PageTitle, Stat, StatusBadge, Table, LinkButton } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { dateTime, money, SERVICE_LABEL } from "@/lib/format";
+import { dateTime, SERVICE_LABEL } from "@/lib/format";
 import { getSession } from "@/lib/session";
-
-/** Short beep via WebAudio — no asset file needed. */
-function beep() {
-  try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.frequency.value = 880;
-    o.type = "sine";
-    g.gain.setValueAtTime(0.2, ctx.currentTime);
-    o.start();
-    o.stop(ctx.currentTime + 0.4);
-    setTimeout(() => ctx.close(), 600);
-  } catch {
-    /* audio unavailable — visual alert remains */
-  }
-}
 
 const waLink = (phone: string) => `https://wa.me/${String(phone).replace(/\D/g, "")}`;
 
@@ -33,50 +13,33 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<any[] | null>(null);
   const [alerts, setAlerts] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [silent, setSilent] = useState(false);
-  const seen = useRef<Set<string>>(new Set());
   const role = getSession()?.role;
 
-  const refreshAlerts = useCallback(async (withSound: boolean) => {
+  const refreshAlerts = useCallback(async () => {
     try {
-      const a = await api<any>("/admin/alerts");
-      setAlerts(a);
-      if (withSound && !silent) {
-        const fresh = a.unassignedOverdue.filter((b: any) => !seen.current.has(b.bookingNumber));
-        if (fresh.length && seen.current.size > 0) beep();
-      }
-      seen.current = new Set([
-        ...a.unassignedOverdue.map((b: any) => b.bookingNumber),
-        ...a.urgentNoDriver.map((b: any) => b.bookingNumber),
-      ]);
+      setAlerts(await api<any>("/admin/alerts"));
     } catch {
       /* alerts are best-effort */
     }
-  }, [silent]);
+  }, []);
 
   useEffect(() => {
     api("/admin/dashboard").then(setDash).catch((e) => setError(e instanceof ApiError ? e.message : "Could not load the dashboard."));
-    api<{ items: any[] }>("/admin/bookings?limit=200")
+    api<{ items: any[] }>("/admin/bookings?openOnly=true&limit=8")
       .then((r) => setBookings(r.items))
       .catch(() => setBookings([]));
-    refreshAlerts(false);
-    const t = setInterval(() => refreshAlerts(true), 30000);
+    refreshAlerts();
+    const t = setInterval(refreshAlerts, 30000);
     return () => clearInterval(t);
   }, [refreshAlerts]);
 
-  const upcoming = (bookings ?? []).filter((b) => !["completed", "cancelled", "rejected", "customer_no_show"].includes(b.status)).slice(0, 8);
+  const upcoming = bookings ?? [];
   const urgent = alerts?.urgentNoDriver ?? [];
   const overdue = alerts?.unassignedOverdue ?? [];
-  const revenue = alerts?.revenue;
 
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <PageTitle title="Dashboard" subtitle="Today's operations at a glance (IST). Alerts refresh every 30s." />
-        <button onClick={() => setSilent((s) => !s)} className="rounded-lg bg-white px-3 py-1.5 text-xs ring-1 ring-slate-300">
-          {silent ? "🔇 Sound off" : "🔔 Sound on"}
-        </button>
-      </div>
+      <PageTitle title="Dashboard" subtitle="Today's operations at a glance (IST). Alerts refresh every 30s." />
       {error && <Alert>{error}</Alert>}
 
       {urgent.length > 0 && (
@@ -89,15 +52,6 @@ export default function DashboardPage() {
           <Stat label="Awaiting review" value={dash.pending.review} hint="New requests" />
           <Stat label="Need a driver" value={dash.pending.assignment} hint="Confirmed, not assigned" />
           <Stat label="Active drivers" value={dash.activeDrivers} hint={`${dash.pending.cancellationRequests} cancellation requests`} />
-        </div>
-      )}
-
-      {revenue && (
-        <div className="mt-4 grid gap-4 md:grid-cols-4">
-          <Stat label="Revenue today (cash)" value={money(revenue.today.cash)} hint="Collected" />
-          <Stat label="Revenue today (online)" value={money(revenue.today.online)} hint="Collected" />
-          <Stat label="Revenue this week (cash)" value={money(revenue.week.cash)} hint="Collected" />
-          <Stat label="Revenue this week (online)" value={money(revenue.week.online)} hint="Collected" />
         </div>
       )}
 
@@ -196,26 +150,8 @@ export default function DashboardPage() {
           </Card>
 
           <Card>
-            <h2 className="font-semibold">Company</h2>
+            <h2 className="font-semibold">Driver reminders due</h2>
             {!alerts ? (
-              <p className="mt-2 text-sm text-slate-500">Loading…</p>
-            ) : (
-              <ul className="mt-3 space-y-3 text-sm">
-                <li className="flex justify-between">
-                  <span>Hiring incomplete</span>
-                  <strong className={(alerts.hiringGaps ?? []).length ? "text-amber-700" : ""}>
-                    {(alerts.hiringGaps ?? []).length ? `${alerts.hiringGaps.length} driver${alerts.hiringGaps.length === 1 ? "" : "s"}` : "All clear ✓"}
-                  </strong>
-                </li>
-                {(alerts.hiringGaps ?? []).slice(0, 4).map((d: any) => (
-                  <li key={d.id} className="text-xs text-slate-600">{d.name} ({d.employeeCode}): missing {d.missing.join(", ")}</li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card>
-            <h2 className="font-semibold">Driver reminders due</h2>            {!alerts ? (
               <p className="mt-2 text-sm text-slate-500">Loading…</p>
             ) : alerts.remindersDue.length === 0 ? (
               <p className="mt-2 text-sm text-slate-600">All assigned drivers confirmed. 🎉</p>
