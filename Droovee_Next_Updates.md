@@ -2,9 +2,9 @@
 
 > - **Created:** 2026-10-24
 > - **Last updated:** 2026-10-25
-> - **Status:** Phase 2 and the approved top-priority updates are implemented locally on `release/2026-10-25`. Awaiting owner review before any push.
+> - **Status:** Phase 2 and the approved top-priority updates were released on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel serve the new build. Remaining items are owner-access operations and owner audio confirmation.
 > - **Local codebase:** `E:\DROOVEE`
-> - **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`.
+> - **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`; release `a9bccef`.
 > - **Backup of the original WIP branch:** `wip/priority-updates-20261025` (`b3ed09d`)
 > - **Local integration branch (earlier):** `release/next`
 > - **Clean release branch:** `release/2026-10-25` (production files plus docs; excludes paused landing-preview assets)
@@ -219,11 +219,12 @@
 - [ ] Investigate the Atlas **144.56 MB** data-size reading: the `droovee` database is under 2 MB, and the sample databases were not visible on the cluster used by the Render URI. Confirm the Atlas project/cluster being viewed; drop `sample_mflix` only if it is present there.
 - [x] Update Render `MONGODB_URI` to the new `droovee` Atlas user.
 - [x] Verify Render health and `/api/v1/services` after the switch. Verified 2026-10-24: health returns `{"status":"ok","db":"up"}`, services return `settingsVersion: 3` with the final tariff.
-- [ ] Generate portal PINs for the 4 existing drivers via **Admin → Drivers → Generate new portal PIN**.
-- [ ] Rotate the Atlas password after Render is confirmed working.
-- [ ] Delete the old Atlas user only after Render is confirmed on the new user.
+- [x] Release `a9bccef` merged and deployed; Render/Vercel public checks passed on 2026-10-25.
+- [ ] Generate portal PINs for the 4 existing drivers via **Admin → Drivers → Generate new portal PIN** (needs an admin session).
+- [ ] Rotate the Atlas password after Render is confirmed working (needs Atlas access).
+- [ ] Delete the old Atlas user only after Render is confirmed on the new user (needs Atlas access).
 - [x] Configure Vercel environment: `API_TARGET=https://droovee.onrender.com` and a server-only `JWT_ACCESS_SECRET` matching Render, so `/admin/*` middleware can verify tokens without an API round-trip. Confirmed by the owner on 2026-10-25.
-- [ ] After the next API deploy, run `npm run db:indexes` once on Render. Production now starts with `autoIndex` disabled and no startup `syncIndexes()`.
+- [ ] After the next API deploy, run `npm run db:indexes` once on Render (needs Render shell access). Production now starts with `autoIndex` disabled and no startup `syncIndexes()`. No schema index definitions changed in this release, so existing indexes remain valid until then.
 - [x] Configure Render always-on (preferred) or a 10-minute keepalive. Confirmed by the owner on 2026-10-25.
 
 ---
@@ -238,7 +239,7 @@
 - [x] Web typecheck and production build pass.
 - [x] Unit/integration tests pass (42/42).
 - [x] Local changes committed on `release/2026-10-25`.
-- [ ] Owner approval received.
-- [ ] Push the release branch and open PR(s).
-- [ ] Render and Vercel deploys verified.
-- [ ] Driver PINs issued and tested.
+- [x] Owner approval received.
+- [x] Release branch pushed and PR #4 merged (`a9bccef`).
+- [x] Render and Vercel deploys verified (health, cache headers, gzip, admin 401, web routes).
+- [ ] Driver PINs issued and tested (needs an admin session).

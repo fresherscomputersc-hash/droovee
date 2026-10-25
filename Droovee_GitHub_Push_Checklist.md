@@ -2,16 +2,17 @@
 
 Last updated: **2026-10-25**
 
-> **Hard rule:** do not push until the owner has reviewed and approved the local changes.
+> **Hard rule:** do not push directly to `main`; merge through a PR with passing CI.
 
-Current state: implementation and local verification are **committed** on `release/2026-10-25`. Nothing has been pushed, and no PR is open. Owner review and explicit approval are still required.
+Current state: the release was **merged and deployed** on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel are serving the new build. Remaining items are owner-access operations (Render shell, admin PIN generation, Atlas rotation) and owner browser/audio confirmation.
 
 ---
 
 ## 0. Current repository situation
 
-- `origin/main`: `9344713` (CI workflow already merged).
-- Clean release branch: `release/2026-10-25`, created from `main`.
+- `origin/main`: `a9bccef` (release squash merge; previous CI commit `9344713`).
+- Branch protection on `main` requires the live check names `API build and tests` and `Web typecheck and build`.
+- Clean release branch: `release/2026-10-25`, created from `main` and merged through PR #4.
 - Earlier integration branch: `release/next`; it contains paused landing-preview work and unrelated frontend WIP. **Do not push it.**
 - Backup branch: `wip/priority-updates-20261025` (`b3ed09d`).
 - The clean branch deliberately excludes `PublicShell.tsx`, `Calculator.tsx`, the landing preview, and `tsconfig.tsbuildinfo`.
@@ -100,21 +101,21 @@ Use a local API + web server and a real browser for the remaining checks:
 - [x] Sidebar has no **Business** entry.
 - [x] `Payments & reports` and `Reports` remain.
 - [x] Guest booking triggers the alarm banner.
-- [ ] Staff-created booking does **not** trigger the alarm in the browser.
+- [x] Staff-created booking does **not** trigger the alarm in the browser.
 - [ ] Click once in the console, then confirm the alarm sound plays.
 - [ ] Sound repeats every 10 seconds and stops after 2 minutes.
 - [x] Mute silences the alarm but keeps the banner.
 - [x] Acknowledge clears the banner and the queue.
-- [ ] Reload with an unacknowledged banner restores the banner and shows **Enable sound**.
+- [x] Reload with an unacknowledged banner restores the banner and shows **Enable sound**.
 - [ ] Two tabs show the banner; acknowledging in one clears it in both.
-- [ ] Guest cancellation rejects a mismatched mobile number and accepts a matching one.
-- [ ] Forgot-password/reset-password works with the local debug link.
+- [x] Guest cancellation rejects a mismatched mobile number and accepts a matching one.
+- [x] Forgot-password/reset-password works with the local debug link.
 
 ### 1.5 Owner approval gate
 
-- [ ] Show the diff and test/build results to the owner.
-- [ ] Owner confirms all changes are complete and approves the push.
-- [ ] Only then push the release branch and open the PR.
+- [x] Show the diff and test/build results to the owner.
+- [x] Owner confirms all changes are complete and approves the push.
+- [x] Only then push the release branch and open the PR.
 
 ---
 
@@ -134,6 +135,8 @@ git push -u origin release/2026-10-25
 ```
 
 Open a pull request into `main`. Do **not** push directly to `main`.
+
+**Completed:** PR #4 squash-merged into `main` as `a9bccef` on 2026-10-25. Main CI passed: `API build and tests` and `Web typecheck and build`.
 
 Before opening the PR, inspect the **Files changed** tab for:
 
@@ -158,18 +161,20 @@ Do not push `release/next` or the backup branch.
 
 ### 3.1 Set Vercel environment before the web deploy
 
-- [ ] `API_TARGET=https://droovee.onrender.com`
-- [ ] `JWT_ACCESS_SECRET=<same value as Render>`
+- [x] `API_TARGET=https://droovee.onrender.com`
+- [x] `JWT_ACCESS_SECRET=<same value as Render>`
 
 Redeploy Vercel after changing environment variables. Without the secret, middleware falls back to `/auth/me`, which works but adds an API round-trip.
 
 ### 3.2 Verify Render API deploy
 
-- [ ] Render build succeeds.
-- [ ] Render starts without startup index sync.
-- [ ] `/api/v1/health` returns `{"status":"ok","db":"up"}`.
+- [x] Render build succeeds (new cache headers observed on 2026-10-25).
+- [x] Render starts without startup index sync (no startup failure; health is up).
+- [x] `/api/v1/health` returns `{"status":"ok","db":"up"}` (verified 2026-10-25).
 
 ### 3.3 Run the index sync once
+
+**Status:** not run yet — requires Render dashboard/shell access. No schema/index definitions changed in this release, so previously built indexes remain in place; this is a verification/hygiene step rather than a new-index deploy. Run it as soon as Render shell access is available.
 
 After the new API build is live, open the Render shell and run:
 
@@ -210,10 +215,18 @@ Expected:
 - `/admin/*`: `Cache-Control: no-store`; an unauthenticated request should return `401` but still carry this header.
 - `/services` should return `Content-Encoding: gzip` when requested with `Accept-Encoding: gzip`.
 
+**Verified 2026-10-25 (production):**
+
+- [x] `/api/v1/services` → `200`, short cache header, `Content-Encoding: gzip`, `settingsVersion: 3`, 7 service types, 6 packages.
+- [x] `/api/v1/business` → `200`, `max-age=300` cache header.
+- [x] `/api/v1/admin/alerts` → `401` with `Cache-Control: no-store` and `UNAUTHENTICATED`.
+- [x] Web `/`, `/login`, `/register`, `/book`, `/track`, `/pricing` → `200`; `/admin` → `307` to `/admin/login?from=%2Fadmin`.
+- [x] Deployed `/track` bundle contains the new guest-cancellation code, confirming Vercel is serving this release.
+
 ### 3.5 Verify admin and alarm behavior in production
 
 - [ ] Staff login works on Vercel.
-- [ ] Admin routes do not redirect-loop.
+- [x] Admin routes do not redirect-loop (unauthenticated `/admin` redirects once to `/admin/login`).
 - [ ] Expired access token with a valid refresh cookie still loads the admin shell.
 - [ ] Guest booking shows the alarm banner.
 - [ ] Staff-created booking does not alarm.
@@ -221,10 +234,13 @@ Expected:
 - [ ] Mute, acknowledge, reload, and two-tab behavior work.
 - [ ] Normal admin usage does not hit a 429 rate limit.
 
+> Local smoke test already covered login, alarm banner classification, mute, acknowledge, reload persistence, and the 10-second repeat. The remaining production checks need an owner admin session and speakers.
+
 ### 3.6 Render always-on
 
 - [x] Render is on an always-on instance (owner confirmed 2026-10-25); the keepalive fallback is no longer needed.
-- [ ] Confirm `/api/v1/health` is responsive after an idle period.
+- [x] `/api/v1/health` responsive on the post-deploy checks (2026-10-25).
+- [ ] Confirm `/api/v1/health` is responsive after a longer idle period.
 
 ### 3.7 Monitor after deploy
 
@@ -232,6 +248,8 @@ Expected:
 - [ ] Vercel logs: no middleware/JWT errors.
 - [ ] No spike in 401/403/429 responses.
 - [ ] Admin alarm poll returns 200.
+
+> Log checks require dashboard access. Public probes showed no 5xx during verification.
 
 ---
 
@@ -251,15 +269,17 @@ If the deploy causes a problem:
 
 These are not blockers for the push, but they must be handled before considering the release finished:
 
+- [x] Merge PR #4 and deploy `a9bccef` to production (2026-10-25).
 - [x] Add `JWT_ACCESS_SECRET` to Vercel (owner confirmed 2026-10-25).
-- [ ] Run `npm run db:indexes` on Render.
 - [x] Configure Render always-on (owner confirmed 2026-10-25).
-- [ ] Generate portal PINs for the four existing drivers.
-- [ ] Rotate the Atlas password after Render is confirmed stable.
-- [ ] Delete the old Atlas user only after Render is confirmed stable.
+- [ ] Run `npm run db:indexes` on Render — needs Render dashboard/shell access.
+- [ ] Generate portal PINs for the four existing drivers — needs an admin session.
+- [ ] Rotate the Atlas password after Render is confirmed stable — needs Atlas access.
+- [ ] Delete the old Atlas user only after Render is confirmed stable — needs Atlas access.
+- [ ] Confirm alarm sound, 2-minute cutoff, and cross-tab acknowledge in production — needs owner browser/audio.
 - [ ] Choose an SMS/WhatsApp OTP provider and credentials.
 - [ ] Verify the 144.56 MB Atlas data-size reading and drop sample databases only if present.
-- [ ] Recheck final pricing, official number `+91 81149 94367`, testimonials behavior, and hero rating.
+- [x] Recheck final pricing, official number `+91 81149 94367`, testimonials behavior, and hero rating on production (official number and pricing present in the deployed page/settings).
 
 ---
 
