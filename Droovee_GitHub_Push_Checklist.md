@@ -4,7 +4,7 @@ Last updated: **2026-10-25**
 
 > **Hard rule:** do not push directly to `main`; merge through a PR with passing CI.
 
-Current state: the release was **merged and deployed** on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel are serving the new build. Remaining items are admin PIN generation, Atlas rotation, a deferred index sync, and two alarm checks (2-minute cutoff and cross-tab acknowledge). The owner confirmed the alarm sound on 2026-10-25.
+Current state: the release was **merged and deployed** on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel are serving the new build. The owner confirmed the alarm sound on 2026-10-25. All remaining verification and operations items are **deferred to a later window** (owner decision 2026-10-25).
 
 ---
 
@@ -110,6 +110,8 @@ Use a local API + web server and a real browser for the remaining checks:
 - [ ] Two tabs show the banner; acknowledging in one clears it in both.
 - [x] Guest cancellation rejects a mismatched mobile number and accepts a matching one.
 - [x] Forgot-password/reset-password works with the local debug link.
+
+> The unchecked items above are deferred to a later verification window (owner decision 2026-10-25).
 
 ### 1.5 Owner approval gate
 
@@ -235,14 +237,14 @@ Expected:
 - [ ] Confirm two-tab behavior: acknowledging in one tab clears the other.
 - [ ] Normal admin usage does not hit a 429 rate limit.
 
-> Local smoke test covered login, alarm banner classification, mute, acknowledge, reload persistence, and the 10-second repeat. The owner confirmed the alarm sound in production on 2026-10-25. The staff-booking, 2-minute cutoff, and two-tab checks remain.
+> Local smoke test covered login, alarm banner classification, mute, acknowledge, reload persistence, and the 10-second repeat. The owner confirmed the alarm sound in production on 2026-10-25. The remaining checks in this section are deferred to a later production verification window (owner decision 2026-10-25).
 
 ### 3.6 Render plan and always-on
 
-- [ ] Render is on the **Free** plan, so the service spins down after idle and Shell is unavailable. Always-on/keepalive is **not** active despite the earlier confirmation.
+- [x] Render is on the **Free** plan (confirmed 2026-10-25 via the Shell prompt), so the service spins down after idle and Shell is unavailable. Always-on/keepalive is **not** active despite the earlier confirmation.
 - [x] `/api/v1/health` responsive on the post-deploy checks (2026-10-25).
-- [ ] Decide whether to upgrade to Starter (Shell + always-on) or accept cold starts on the first request after idle.
-- [ ] If staying on Free, confirm the cold-start behavior is acceptable (or reinstate a keepalive).
+- [ ] **Deferred:** decide whether to upgrade to Starter (Shell + always-on) or accept cold starts on the first request after idle.
+- [ ] **Deferred:** if staying on Free, confirm the cold-start behavior is acceptable (or reinstate a keepalive).
 
 ### 3.7 Monitor after deploy
 
@@ -267,21 +269,21 @@ If the deploy causes a problem:
 
 ---
 
-## 5. Outstanding operational items
+## 5. Outstanding operational items (deferred)
 
-These are not blockers for the push, but they must be handled before considering the release finished:
+All open items below are **deferred to a later operations window** (owner decision 2026-10-25). None block the live release.
 
 - [x] Merge PR #4 and deploy `a9bccef` to production (2026-10-25).
 - [x] Add `JWT_ACCESS_SECRET` to Vercel (owner confirmed 2026-10-25).
 - [x] Alarm sound confirmed by the owner in production (2026-10-25).
-- [ ] Confirm the 2-minute cutoff and cross-tab acknowledge in production.
-- [ ] Decide on the Render plan: Free (cold starts, no Shell) vs Starter (always-on + Shell). Always-on is not active today.
-- [ ] Run `npm run db:indexes` before the next schema/index change — deferred on 2026-10-25; no index changes in this release.
-- [ ] Generate portal PINs for the four existing drivers — needs an admin session.
-- [ ] Rotate the Atlas password after Render is confirmed stable — needs Atlas access.
-- [ ] Delete the old Atlas user only after Render is confirmed stable — needs Atlas access.
-- [ ] Choose an SMS/WhatsApp OTP provider and credentials.
-- [ ] Verify the 144.56 MB Atlas data-size reading and drop sample databases only if present.
+- [ ] **Deferred:** confirm the 2-minute cutoff and cross-tab acknowledge in production.
+- [ ] **Deferred:** decide on the Render plan: Free (cold starts, no Shell) vs Starter (always-on + Shell).
+- [ ] **Deferred:** run `npm run db:indexes` before the next schema/index change — no index changes in this release.
+- [ ] **Deferred:** generate portal PINs for the four existing drivers.
+- [ ] **Deferred:** rotate the Atlas password.
+- [ ] **Deferred:** delete the old Atlas user after rotation is stable.
+- [ ] **Deferred:** choose an SMS/WhatsApp OTP provider and credentials.
+- [ ] **Deferred:** verify the 144.56 MB Atlas data-size reading and drop sample databases only if present.
 - [x] Recheck final pricing, official number `+91 81149 94367`, testimonials behavior, and hero rating on production (official number and pricing present in the deployed page/settings).
 
 ---

@@ -2,7 +2,7 @@
 
 > - **Created:** 2026-10-24
 > - **Last updated:** 2026-10-25
-> - **Status:** Phase 2 and the approved top-priority updates were released on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel serve the new build. Remaining items are admin PIN generation, Atlas rotation, a deferred index sync, two alarm checks, and the Render Free-vs-Starter decision.
+> - **Status:** Phase 2 and the approved top-priority updates were released on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel serve the new build. All remaining operations and verification items are deferred to a later window (owner decision 2026-10-25).
 > - **Local codebase:** `E:\DROOVEE`
 > - **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`; release `a9bccef`.
 > - **Backup of the original WIP branch:** `wip/priority-updates-20261025` (`b3ed09d`)
@@ -214,18 +214,21 @@
 
 ---
 
-## 7. Pending operational items
+## 7. Pending operational items (deferred)
 
-- [ ] Investigate the Atlas **144.56 MB** data-size reading: the `droovee` database is under 2 MB, and the sample databases were not visible on the cluster used by the Render URI. Confirm the Atlas project/cluster being viewed; drop `sample_mflix` only if it is present there.
+All open items below are **deferred to a later operations window** (owner decision 2026-10-25).
+
+- [ ] **Deferred:** confirm the 2-minute alarm cutoff and cross-tab acknowledge in production.
+- [ ] **Deferred:** investigate the Atlas **144.56 MB** data-size reading: the `droovee` database is under 2 MB, and the sample databases were not visible on the cluster used by the Render URI. Confirm the Atlas project/cluster being viewed; drop `sample_mflix` only if it is present there.
 - [x] Update Render `MONGODB_URI` to the new `droovee` Atlas user.
 - [x] Verify Render health and `/api/v1/services` after the switch. Verified 2026-10-24: health returns `{"status":"ok","db":"up"}`, services return `settingsVersion: 3` with the final tariff.
 - [x] Release `a9bccef` merged and deployed; Render/Vercel public checks passed on 2026-10-25.
-- [ ] Generate portal PINs for the 4 existing drivers via **Admin → Drivers → Generate new portal PIN** (needs an admin session).
-- [ ] Rotate the Atlas password after Render is confirmed working (needs Atlas access).
-- [ ] Delete the old Atlas user only after Render is confirmed on the new user (needs Atlas access).
+- [ ] **Deferred:** generate portal PINs for the 4 existing drivers via **Admin → Drivers → Generate new portal PIN** (needs an admin session).
+- [ ] **Deferred:** rotate the Atlas password after Render is confirmed working (needs Atlas access).
+- [ ] **Deferred:** delete the old Atlas user only after Render is confirmed on the new user (needs Atlas access).
 - [x] Configure Vercel environment: `API_TARGET=https://droovee.onrender.com` and a server-only `JWT_ACCESS_SECRET` matching Render, so `/admin/*` middleware can verify tokens without an API round-trip. Confirmed by the owner on 2026-10-25.
-- [ ] Run `npm run db:indexes` before the next schema/index change — deferred by the owner on 2026-10-25. No schema index definitions changed in this release, so existing indexes remain valid. Render Shell is unavailable on the Free plan; use a local `MONGODB_URI` run or Starter when needed.
-- [ ] Render always-on is **not** active: the service is on the Free plan (Shell unavailable, spins down after idle). Decide between Starter and accepting cold starts, or reinstate a keepalive.
+- [ ] **Deferred:** run `npm run db:indexes` before the next schema/index change. No schema index definitions changed in this release, so existing indexes remain valid. Render Shell is unavailable on the Free plan; use a local `MONGODB_URI` run or Starter when needed.
+- [ ] **Deferred:** Render always-on is **not** active: the service is on the Free plan (Shell unavailable, spins down after idle). Decide between Starter and accepting cold starts, or reinstate a keepalive.
 
 ---
 
@@ -242,4 +245,4 @@
 - [x] Owner approval received.
 - [x] Release branch pushed and PR #4 merged (`a9bccef`).
 - [x] Render and Vercel deploys verified (health, cache headers, gzip, admin 401, web routes).
-- [ ] Driver PINs issued and tested (needs an admin session).
+- [ ] **Deferred:** Driver PINs issued and tested (needs an admin session).
