@@ -32,7 +32,7 @@
 > **Goal:** Validate local environment, ensure tests pass with dev flags, and apply immediate security/data hygiene fixes.
 
 ### Tasks
-- [ ] **0.1 Environment Configuration:** 
+- [ ] **0.1 Environment Configuration:**
   - Ensure `droovee-api/.env` has `OTP_ENABLED=false` or `OTP_DEBUG=true` (fixed dev code like `123456` or console output).
   - Configure dummy/silent notification transport so missing SMTP credentials do not fail booking flows.
 - [ ] **0.2 Run API & Web Builds:**

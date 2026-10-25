@@ -1,13 +1,13 @@
 # Droovee — Next Updates Plan
 
-> **Created:** 2026-10-24  
-> **Last updated:** 2026-10-25  
-> **Status:** Phase 2 and the approved top-priority updates are implemented locally on `release/2026-10-25`. Awaiting owner review before any push.  
-> **Local codebase:** `E:\DROOVEE`  
-> **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`.  
-> **Backup of the original WIP branch:** `wip/priority-updates-20261025` (`b3ed09d`)  
-> **Local integration branch (earlier):** `release/next`  
-> **Clean release branch:** `release/2026-10-25` (production files plus docs; excludes paused landing-preview assets)
+> - **Created:** 2026-10-24
+> - **Last updated:** 2026-10-25
+> - **Status:** Phase 2 and the approved top-priority updates are implemented locally on `release/2026-10-25`. Awaiting owner review before any push.
+> - **Local codebase:** `E:\DROOVEE`
+> - **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`.
+> - **Backup of the original WIP branch:** `wip/priority-updates-20261025` (`b3ed09d`)
+> - **Local integration branch (earlier):** `release/next`
+> - **Clean release branch:** `release/2026-10-25` (production files plus docs; excludes paused landing-preview assets)
 
 ---
 
