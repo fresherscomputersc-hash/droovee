@@ -2,7 +2,7 @@
 
 > - **Created:** 2026-10-24
 > - **Last updated:** 2026-10-25
-> - **Status:** Phase 2 and the approved top-priority updates were released on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel serve the new build. Remaining items are owner-access operations and owner audio confirmation.
+> - **Status:** Phase 2 and the approved top-priority updates were released on 2026-10-25. PR #4 squash-merged as `a9bccef`; main CI passed; Render and Vercel serve the new build. Remaining items are admin PIN generation, Atlas rotation, a deferred index sync, two alarm checks, and the Render Free-vs-Starter decision.
 > - **Local codebase:** `E:\DROOVEE`
 > - **Remote:** `origin/main` — Phase 1 commit `dc41717`; CI commit `9344713`; release `a9bccef`.
 > - **Backup of the original WIP branch:** `wip/priority-updates-20261025` (`b3ed09d`)
@@ -224,8 +224,8 @@
 - [ ] Rotate the Atlas password after Render is confirmed working (needs Atlas access).
 - [ ] Delete the old Atlas user only after Render is confirmed on the new user (needs Atlas access).
 - [x] Configure Vercel environment: `API_TARGET=https://droovee.onrender.com` and a server-only `JWT_ACCESS_SECRET` matching Render, so `/admin/*` middleware can verify tokens without an API round-trip. Confirmed by the owner on 2026-10-25.
-- [ ] After the next API deploy, run `npm run db:indexes` once on Render (needs Render shell access). Production now starts with `autoIndex` disabled and no startup `syncIndexes()`. No schema index definitions changed in this release, so existing indexes remain valid until then.
-- [x] Configure Render always-on (preferred) or a 10-minute keepalive. Confirmed by the owner on 2026-10-25.
+- [ ] Run `npm run db:indexes` before the next schema/index change — deferred by the owner on 2026-10-25. No schema index definitions changed in this release, so existing indexes remain valid. Render Shell is unavailable on the Free plan; use a local `MONGODB_URI` run or Starter when needed.
+- [ ] Render always-on is **not** active: the service is on the Free plan (Shell unavailable, spins down after idle). Decide between Starter and accepting cold starts, or reinstate a keepalive.
 
 ---
 
@@ -233,7 +233,7 @@
 
 > Detailed pre-push and post-deploy steps: `Droovee_GitHub_Push_Checklist.md`.
 
-- [x] Top-priority updates implemented (manual alarm audio check pending).
+- [x] Top-priority updates implemented; owner confirmed the alarm sound on 2026-10-25 (2-minute cutoff and cross-tab checks pending).
 - [x] Phase 2 customer flows complete for this release; WhatsApp OTP remains deferred.
 - [x] API typecheck and build pass.
 - [x] Web typecheck and production build pass.
