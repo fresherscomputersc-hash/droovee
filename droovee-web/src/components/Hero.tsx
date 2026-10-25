@@ -32,7 +32,7 @@ export function Hero() {
 
       {/* High-contrast subtitle */}
       <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-        Need an acting driver near you? Hire a professional, police-verified driver for your own car at transparent, per-minute rates. Experienced, punctual, and safe on every trip.
+        Need an acting driver near you? Hire a professional, police-verified driver for your own car at transparent hourly rates. Experienced, punctual, and safe on every trip.
       </p>
 
       {/* Trust Badges matching udrivo pill format */}
@@ -63,10 +63,10 @@ export function Hero() {
       {/* Action Buttons matching udrivo pill shape */}
       <div className="mt-7 flex flex-wrap items-center gap-3">
         <Link
-          href={isCustomer ? "/book/user" : "/book"}
+          href="/book"
           className="rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 hover:scale-105"
         >
-          Hire a Driver Now →
+          Book a Driver Now →
         </Link>
         <Link
           href={isCustomer ? "/bookings" : "/track"}

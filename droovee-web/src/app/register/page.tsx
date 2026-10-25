@@ -69,7 +69,7 @@ export default function RegisterPage() {
         body: { name: form.name, phone: form.phone, password: form.password, email: form.email || undefined, ...(otpEnabled ? { otp: form.otp } : {}) },
       });
       setSession({ kind: "customer" });
-      router.replace("/book/user");
+      router.replace("/book");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

@@ -6,7 +6,7 @@ const STEPS = [
   {
     step: "01",
     title: "Select Trip & Schedule",
-    desc: "Choose In-City, Outstation, or Airport Transfer. Enter your pickup address, scheduled date/time, and car model (Sedan, SUV, EV, Manual/Automatic). No compulsory account creation required.",
+    desc: "Sign in or create a free account, then choose In-City, Outstation, or Airport Transfer. Enter your pickup address, scheduled date/time, and car model (Sedan, SUV, EV, Manual/Automatic).",
     tip: "Tip: Use code LAUNCH99 for ₹99 on your first hour.",
     badge: "Step 1: Online Booking",
   },
@@ -54,7 +54,7 @@ const FAQS = [
   },
   {
     q: "Do I need to download an app to use Droovee?",
-    a: "No! Droovee is completely web-first. You can book, track your driver live, and get digital receipts right from your phone's browser. You also get status links via WhatsApp and SMS.",
+    a: "No app download is needed. Droovee is completely web-first: create a free account, book, track your driver live, and get digital receipts from your phone's browser. You also get status links via WhatsApp and SMS.",
   },
   {
     q: "Who pays for fuel, highway tolls, and parking?",

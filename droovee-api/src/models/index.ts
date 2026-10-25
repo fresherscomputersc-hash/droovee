@@ -30,7 +30,7 @@ export const CustomerModel = model("Customer", customerSchema);
 const otpSchema = new Schema(
   {
     phone: { type: String, required: true, index: true },
-    purpose: { type: String, enum: ["login", "register", "verify_phone", "guest_booking"], required: true },
+    purpose: { type: String, enum: ["login", "register", "verify_phone"], required: true },
     codeHash: { type: String, required: true, select: false },
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
@@ -121,7 +121,18 @@ const availabilityBlockSchema = new Schema(
     endAt: { type: Date, required: true },
     type: { type: String, enum: ["leave", "unavailable", "shift_off"], required: true },
     reason: { type: String, trim: true, maxlength: 500 },
-    createdBy: { type: Schema.Types.ObjectId, ref: "Staff", required: true },
+    /**
+     * Staff-created blocks are approved immediately. Driver-requested leave is
+     * pending until an admin approves or rejects it. Legacy blocks have no
+     * status and are treated as approved by the API/UI.
+     */
+    status: { type: String, enum: ["pending", "approved", "rejected", "cancelled"], default: "approved" },
+    requestedByKind: { type: String, enum: ["staff", "driver"], default: "staff" },
+    requestedById: { type: Schema.Types.ObjectId },
+    createdBy: { type: Schema.Types.ObjectId, ref: "Staff" },
+    decidedBy: { type: Schema.Types.ObjectId, ref: "Staff" },
+    decidedAt: { type: Date },
+    decisionNote: { type: String, trim: true, maxlength: 500 },
   },
   opts,
 );
@@ -172,9 +183,6 @@ const bookingSchema = new Schema(
     carModel: { type: String, required: true, maxlength: 80 },
     transmission: { type: String, enum: ["manual", "automatic"], required: true },
     instructions: { type: String, maxlength: 1000, default: "" },
-    // Fast Booking (guest) extras — PDF Phase 1 §3.1
-    isGuest: { type: Boolean, default: false },    guestWhatsapp: { type: String },
-    guestEmail: { type: String, lowercase: true, trim: true },
     landmark: { type: String, maxlength: 300 },
     carNumber: { type: String, maxlength: 20 },
     altContact: { type: String, maxlength: 20 },

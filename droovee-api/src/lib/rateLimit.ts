@@ -47,7 +47,7 @@ export const loginLimiter = (): RateLimitRequestHandler =>
 /** Coupon-guessing / estimate-scraping protection (estimate is unauthenticated). */
 export const estimateLimiter = (): RateLimitRequestHandler => make(WINDOW, 120);
 
-/** Public guest cancellation requests: throttle by booking ID to prevent spam. */
+/** Public cancellation requests: throttle by booking ID to prevent spam. */
 export const cancellationLimiter = (): RateLimitRequestHandler =>
   make(WINDOW, 20, (req) => {
     const b = req.body as { bookingNumber?: unknown } | undefined;

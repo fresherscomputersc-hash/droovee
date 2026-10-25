@@ -119,13 +119,14 @@
 ### Verification
 - API: build and typecheck pass ✅
 - Web: typecheck and production build pass ✅ — **47 routes**
-- Tests: **42 passing** (25 unit + 17 integration) ✅
+- Tests: **47 passing** (25 unit + 22 integration) ✅
 - Integration tests use an in-memory MongoDB replica set by default, with a 120s startup allowance on Windows; `TEST_MONGODB_URI` can point them at an external test database.
 - Manual alarm audio check: pending — needs a real browser with sound enabled.
-- Local browser smoke test (2026-10-25): dashboard cleanup, guest alarm banner, mute/acknowledge, reload persistence, and 10-second repeat all behaved correctly; actual sound and the 2-minute cutoff still need the owner’s check.
+- Local browser smoke test (2026-10-25): dashboard cleanup, new-booking alarm banner, mute/acknowledge, reload persistence, and 10-second repeat all behaved correctly; actual sound and the 2-minute cutoff still need the owner’s check.
+- Local browser smoke test (2026-10-25, booking simplification): landing → login gate → signed-in `/book` → **Book Now** → confirmation passed; `/book/user` redirect and `?service=` deep link also passed.
 
 ### Known local caveat
-- The clean release branch keeps `PublicShell.tsx` and `Calculator.tsx` at the production baseline. The paused landing-page preview work lives on `release/next`, not on `release/2026-10-25`.
+- `/book/user` now redirects to `/book`. Fast/guest booking is removed; historical guest bookings in production still exist as booking documents and are not migrated.
 
 ---
 
@@ -138,13 +139,14 @@
   - Monthly office schedule
   - Outstation one-way / round-trip with night halt
   - Airport/station pickup and drop
-- [x] Guest vs signed-in booking paths:
-  - Guest form with the “note your Booking ID” notice
-  - Signed-in form with prefilled details and trip history
+- [x] Single signed-in booking path:
+  - One `/book` flow; guests are redirected to sign in or create a free account
+  - Account details prefill the booking, with trip history under My Trips
+  - Fast/guest booking removed from the web app, API, OTP purposes and booking model
 - [x] Fare breakdown using the authoritative rates, including extra hours, night halt, and late-night surcharge.
 - [x] Customer responsibility disclosure: toll, parking, fuel, outstation food/stay.
 - [x] Tracking by Booking ID **or** mobile number, with a status timeline.
-- [x] Self-service cancellation request within allowed states (signed-in and guest via booking ID + mobile).
+- [x] Self-service cancellation request within allowed states (signed-in and public tracking via booking ID + mobile).
 - [ ] OTP delivery: add WhatsApp OTP verification.
   - [ ] Choose provider: Meta WhatsApp Cloud API (direct) or a BSP such as Twilio, Gupshup, Interakt, or AiSensy.
   - [ ] Implement a `WhatsAppOtpSender` behind the existing `OtpSender` interface; keep the dev sender for local work.
@@ -156,7 +158,7 @@
 
 **Status (2026-10-25):** booking, tracking, cancellation, and password-reset flows verified locally. OTP UI now hides automatically while OTP is disabled. Only WhatsApp OTP delivery remains, pending provider choice.
 
-**Exit gate:** a guest and a signed-in customer can complete a booking, see a correct fare breakdown, and track it by ID or mobile.
+**Exit gate:** a signed-in customer can complete a booking, see a correct fare breakdown, and track it by ID or mobile.
 
 ---
 
@@ -184,13 +186,15 @@
 
 **Goal:** complete the driver’s mobile workflow.
 
-- [ ] Driver schedule and upcoming trips view.
-- [ ] Leave/unavailable request submission.
-- [ ] Trip-code and cash-collection UX polish.
-- [ ] Session-expiry handling and clear re-login flow.
-- [ ] Push/WhatsApp reminders for assigned trips.
+- [x] Driver schedule and upcoming trips view (day-grouped schedule + next-trip banner).
+- [x] Leave/unavailable request submission (pending until admin approval; cancel pending; audited).
+- [x] Trip-code and cash-collection UX polish (numeric code validation, fare/payment display, cash cap).
+- [x] Session-expiry handling and clear re-login flow (401 redirect + login notice).
+- [ ] Push/WhatsApp reminders for assigned trips (deferred pending provider decision).
 - [ ] PWA offline behavior check.
-- [ ] Confirm drivers can only see their own assigned trips.
+- [x] Confirm drivers can only see their own assigned trips (integration test + cross-driver action 404).
+
+**Status (2026-10-25):** first tranche complete locally. API tests pass 46/46; web build passes 47 routes. Push/WhatsApp reminders and PWA offline checks remain deferred.
 
 **Exit gate:** a driver can log in, see the schedule, run a trip, record cash, and request leave from a phone.
 

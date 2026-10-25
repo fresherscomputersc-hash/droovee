@@ -46,7 +46,7 @@ const customerPassword = z
   });
 const otpCode = z.string().regex(/^\d{6}$/, "Enter the 6-digit code.");
 
-const otpRequestSchema = z.object({ phone: phoneField, purpose: z.enum(["login", "register", "guest_booking"]) });
+const otpRequestSchema = z.object({ phone: phoneField, purpose: z.enum(["login", "register"]) });
 
 authRouter.post("/otp/request", validate(otpRequestSchema), async (req, res) => {
   otpOff();

@@ -16,7 +16,6 @@ import { SERVICE_TYPES } from "./pricing";
 import { bookingCreateLimiter, cancellationLimiter, estimateLimiter } from "../lib/rateLimit";
 import { BookingStatus } from "../domain/status";
 import { config } from "../config";
-import { verifyOtp } from "../services/otp";
 import { sendMail, bookingConfirmationMail } from "../services/mail";
 import { logNotification } from "../services/notify";
 import { ensureReferralCode, resolvePackage, resolveReferrer, recordReferral } from "../services/growth";
@@ -63,7 +62,7 @@ const bookingBaseSchema = z.object({
     agreedToTerms: z.literal(true, { message: "Please accept the Terms and Cancellation policy." }).optional(),
   });
 
-/** Cross-field trip checks, shared by the signed-in and guest booking schemas. */
+/** Cross-field trip checks for a booking request. */
 function bookingChecks(b: z.infer<typeof bookingBaseSchema>, ctx: z.RefinementCtx) {
     const needsDestination = ["outstation_one_way", "outstation_round_trip", "airport_pickup_drop"].includes(b.serviceType);
     if (needsDestination && !b.destination) {
@@ -374,7 +373,7 @@ async function requestCancellation(b: any, reason: string, actorId: string) {
   });
 }
 
-/** Guest/no-account cancellation request: booking ID plus the mobile number on the booking. */
+/** Public cancellation request: booking ID plus the mobile number on the booking. */
 const trackCancelSchema = z.object({
   bookingNumber: z.string().trim().min(4).max(20),
   phone: z.string().trim().min(6).max(20),
@@ -403,215 +402,6 @@ bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cance
   const reason = (req.body as z.infer<typeof cancelSchema>).reason;
   await requestCancellation(b, reason, req.principal!.id);
   res.status(202).json({ status: "cancellation_requested", bookingNumber: b.bookingNumber });
-});
-
-/** Fast Booking (guest, no sign-in). PDF Phase 1 §3.1. */
-const guestSchema = bookingBaseSchema
-  .extend({
-    name: z.string().trim().min(2).max(120),
-    phone: z.string().transform((v, ctx) => {
-      const n = normalisePhone(v);
-      if (!n) ctx.addIssue({ code: "custom", message: "Enter a valid Indian mobile number." });
-      return n ?? "";
-    }),
-    otp: z.string().regex(/^\d{6}$/).optional(),
-    whatsapp: z.string().trim().max(20).optional(),
-    landmark: z.string().trim().max(300).optional(),
-    carNumber: z.string().trim().max(20).optional(),
-    altContact: z.string().trim().max(20).optional(),
-    driverLanguage: z.enum(["odia", "hindi", "english"]).optional(),
-    paymentPreference: z.enum(["online", "cash_upi"]),
-    email: z.email().trim().toLowerCase().optional(), // booking confirmation goes here
-    agreedToTerms: z.literal(true, { message: "Please accept the Terms and Cancellation policy." }),
-    company: z.string().max(100).optional(), // honeypot
-  })
-  .superRefine(bookingChecks);
-bookingsRouter.post("/guest", bookingCreateLimiter(), validate(guestSchema), async (req, res) => {
-  const b = req.body as z.infer<typeof guestSchema>;
-  if (b.company) {
-    // Honeypot filled: pretend success without creating anything.
-    throw new AppError(400, "VALIDATION_ERROR", "Could not submit your booking. Please try again.");
-  }
-  if (config.otpEnabled) {
-    if (!b.otp) throw new AppError(400, "VALIDATION_ERROR", "Enter the 6-digit code sent to your mobile.", { otp: "required" });
-    await verifyOtp(b.phone, "guest_booking", b.otp);
-  }
-  // Spam guard: max 5 guest bookings per number per hour.
-  const hourAgo = new Date(Date.now() - 60 * 60_000);
-  const recent = await BookingModel.countDocuments({
-    "customerSnapshot.phone": b.phone,
-    createdAt: { $gte: hourAgo },
-  });
-  if (recent >= 5) throw new AppError(429, "RATE_LIMITED", "Too many bookings from this number. Try again later.");
-
-  let customer = await CustomerModel.findOne({ phone: b.phone });
-  // Email is unique per account: if this email belongs to a different phone,
-  // leave the customer record alone (confirmation still goes to the typed email).
-  const emailTakenElsewhere = b.email
-    ? await CustomerModel.exists({ email: b.email, phone: { $ne: b.phone } })
-    : null;
-  if (!customer) {
-    try {
-      customer = await CustomerModel.create({
-        name: b.name,
-        phone: b.phone,
-        email: emailTakenElsewhere ? undefined : b.email,
-        phoneVerified: config.otpEnabled,
-        active: true,
-      });
-    } catch (e) {
-      if ((e as { code?: number }).code === 11000) {
-        customer = (await CustomerModel.findOne({ phone: b.phone }))!;
-      } else throw e;
-    }
-  } else {
-    let save = false;
-    if (config.otpEnabled && !customer.phoneVerified) {
-      customer.phoneVerified = true;
-      save = true;
-    }
-    if (b.email && !customer.email && !emailTakenElsewhere) {
-      customer.email = b.email;
-      save = true;
-    }
-    if (save) {
-      try {
-        await customer.save();
-      } catch (e) {
-        if ((e as { code?: number }).code !== 11000) throw e;
-      }
-    }
-  }
-  const customerId = customer._id as Types.ObjectId;
-
-  const { version, settings } = await getActiveSettings();
-  const now = new Date();
-  const leadMinutes = settings.policy.minLeadTimeMinutes.value;
-  if (!b.immediate && b.scheduledStart.getTime() < now.getTime() + leadMinutes * 60_000) {
-    throw new AppError(400, "VALIDATION_ERROR", `Bookings need at least ${leadMinutes} minutes' notice.`, { scheduledStart: "too_soon" });
-  }
-  if (b.scheduledStart.getTime() < now.getTime() - 60_000) {
-    throw new AppError(400, "VALIDATION_ERROR", "Start time is in the past.", { scheduledStart: "past" });
-  }
-  const end = bookingEnd(b.scheduledStart, b.durationHours, b.scheduledEnd);
-  if (end <= b.scheduledStart) {
-    throw new AppError(400, "VALIDATION_ERROR", "End time must be after start time.", { scheduledEnd: "invalid" });
-  }
-
-  let coupon: ValidCoupon | undefined;
-  if (b.couponCode) {
-    coupon = await validateCoupon(b.couponCode, b.serviceType, now);
-    if (coupon.perCustomerLimit === 1 && (await alreadyRedeemed(coupon.code, customerId))) {
-      throw new AppError(400, "VALIDATION_ERROR", "You have already used this coupon.", { couponCode: "already_used" });
-    }
-  }
-  let pkg: Pkg | undefined;
-  if (b.packageId) {
-    if (coupon) throw new AppError(400, "VALIDATION_ERROR", "A package cannot be combined with a coupon.", { couponCode: "no_combo" });
-    pkg = resolvePackage(settings, b.packageId);
-    if (!(SERVICE_TYPES as readonly string[]).includes(pkg.serviceType)) {
-      throw new AppError(400, "VALIDATION_ERROR", "This package is misconfigured.", { packageId: "invalid" });
-    }
-  }
-  const fareInput = pkg
-    ? { serviceType: pkg.serviceType as ServiceType, durationHours: pkg.durationHours, startAt: b.scheduledStart, nights: pkg.nights ?? 0 }
-    : { serviceType: b.serviceType, durationHours: b.durationHours, startAt: b.scheduledStart, nights: b.nights };
-  const base = estimateFare(fareInput as never, settings);
-  if (coupon) assertCouponMinAmount(coupon, base.total);
-  const estimate = pkg
-    ? { total: pkg.fixedPrice, lines: [{ label: `Package: ${pkg.name}`, amount: pkg.fixedPrice }], usesUnconfirmedRules: false }
-    : coupon?.type === "first_hour_price" ? estimateFare({ ...fareInput, firstHourCouponPrice: coupon.value }, settings) : base;
-
-  let booking;
-  for (let attempt = 0; attempt < 3 && !booking; attempt++) {
-    try {
-      booking = await BookingModel.create({
-        bookingNumber: newBookingNumber(),
-        customerId,
-        customerSnapshot: { name: b.name, phone: b.phone },
-        serviceType: b.serviceType,
-        immediate: b.immediate,
-        pickup: b.pickup,
-        destination: b.destination,
-        scheduledStart: b.scheduledStart,
-        scheduledEnd: end,
-        durationHours: b.durationHours,
-        nights: b.nights,
-        carModel: b.carModel,
-        transmission: b.transmission,
-        instructions: b.instructions,
-        couponCode: b.couponCode?.toUpperCase(),
-        packageId: pkg?.id,
-        referralCode: b.referralCode?.toUpperCase(),
-        status: "requested",
-        fareEstimate: { total: estimate.total, lines: estimate.lines, usesUnconfirmedRules: estimate.usesUnconfirmedRules, computedAt: now, settingsVersion: version },
-        recurrence: b.recurrence,
-        statusHistory: [{ from: null, to: "requested", actorId: customerId, actorKind: "customer", at: now }],
-        isGuest: true,
-        guestWhatsapp: b.whatsapp,
-        guestEmail: b.email,
-        landmark: b.landmark,
-        carNumber: b.carNumber,
-        altContact: b.altContact,
-        driverLanguage: b.driverLanguage,
-        paymentPreference: b.paymentPreference,
-        agreedToTerms: true,
-        source: "website",
-      });
-    } catch (e) {
-      if ((e as { code?: number }).code !== 11000) throw e;
-    }
-  }
-  if (!booking) throw new AppError(500, "INTERNAL", "Could not create booking. Please try again.");
-  await ensureReferralCode(customerId);
-  if (b.referralCode) {
-    const referrer = await resolveReferrer(b.referralCode, customerId);
-    await recordReferral(b.referralCode, referrer._id as Types.ObjectId, customerId, booking._id as Types.ObjectId);
-  }
-
-  if (coupon) {
-    const ok = await consumeCoupon(coupon.code);
-    if (!ok) {
-      await booking.deleteOne();
-      throw new AppError(400, "VALIDATION_ERROR", "Coupon code has been fully used. Please try again without it.", { couponCode: "exhausted" });
-    }
-    if (coupon.perCustomerLimit === 1) {
-      const recorded = await recordRedemption({ code: coupon.code, couponId: coupon.id, customerId, bookingId: booking._id as Types.ObjectId });
-      if (!recorded) {
-        await booking.deleteOne();
-        await releaseCouponUse(coupon.code);
-        throw new AppError(400, "VALIDATION_ERROR", "You have already used this coupon.", { couponCode: "already_used" });
-      }
-    }
-  }
-
-  await audit({
-    actorId: String(customerId),
-    actorKind: "customer",
-    action: "booking.create_guest",
-    entityType: "Booking",
-    entityId: String(booking._id),
-    after: { bookingNumber: booking.bookingNumber, total: estimate.total },
-  });
-
-  // Confirmation email (SMTP). Fire-and-forget: booking succeeds even if mail fails.
-  if (b.email) {
-    const { subject, text, html } = bookingConfirmationMail({
-      bookingNumber: booking.bookingNumber,
-      name: b.name,
-      serviceType: b.serviceType,
-      start: b.scheduledStart,
-      pickup: b.pickup.address,
-      destination: b.destination?.address,
-      carModel: b.carModel,
-      total: estimate.total,
-    });
-    sendMail(b.email, subject, text, html)
-      .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", b.email!, sent, sent ? undefined : "smtp not configured or send failed"))
-      .catch(() => {});
-  }
-
-  res.status(201).json(customerView(booking.toObject(), null));
 });
 
 /**

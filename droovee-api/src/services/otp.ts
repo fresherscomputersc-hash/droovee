@@ -4,7 +4,7 @@ import { AppError } from "../lib/errors";
 import { newOtp } from "../lib/ids";
 import { hmac, safeEqualHex } from "../lib/tokens";
 
-export type OtpPurpose = "login" | "register" | "verify_phone" | "guest_booking";
+export type OtpPurpose = "login" | "register" | "verify_phone";
 
 /**
  * SMS delivery is a pluggable provider. No provider is wired in yet.

@@ -69,7 +69,7 @@ export default async function ServicePage({ params }: { params: Promise<{ type: 
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
             <li>Police-verified, trained drivers</li>
             <li>Estimate up front — no hidden charges</li>
-            <li>Track with booking ID, no account needed</li>
+            <li>Live tracking with your booking ID</li>
             <li>Damage while our driver drives is the driver's responsibility</li>
           </ul>
           <div className="mt-4 flex flex-wrap gap-3">

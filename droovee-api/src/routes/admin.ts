@@ -202,9 +202,21 @@ const listQuery = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   customerPhone: z.string().trim().max(20).optional(),
+  serviceType: z.enum(SERVICE_TYPES).optional(),
+  /** Dispatch queue: true = has a driver, false = waiting for assignment. */
+  assigned: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+  /** Free-text dispatch search: booking number, customer name/phone, driver name/code. */
+  q: z.string().trim().max(80).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   page: z.coerce.number().int().min(1).default(1),
 });
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /** Paged envelope: { items, page, limit, total }. Page beyond total returns []. */
 function pageOf<T>(items: T[], total: number, page: number, limit: number) {
@@ -219,6 +231,23 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
   if (q.bookingNumber) filter.bookingNumber = q.bookingNumber.toUpperCase();
   if (q.from || q.to) filter.scheduledStart = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lt: q.to } : {}) };
   if (q.customerPhone) filter["customerSnapshot.phone"] = { $regex: q.customerPhone.replace(/\D/g, "") + "$" };
+  if (q.serviceType) filter.serviceType = q.serviceType;
+  if (q.assigned !== undefined) filter.driverId = q.assigned ? { $ne: null } : null;
+  if (q.q) {
+    const term = escapeRegex(q.q);
+    const rx = new RegExp(term, "i");
+    const digits = q.q.replace(/\D/g, "");
+    const driverMatches = await DriverModel.find({ $or: [{ name: rx }, { employeeCode: rx }] })
+      .select("_id")
+      .limit(50)
+      .lean();
+    filter.$or = [
+      { bookingNumber: rx },
+      { "customerSnapshot.name": rx },
+      ...(digits.length >= 3 ? [{ "customerSnapshot.phone": { $regex: digits + "$" } }] : []),
+      ...(driverMatches.length ? [{ driverId: { $in: driverMatches.map((d) => d._id) } }] : []),
+    ];
+  }
   const [items, total] = await Promise.all([
     BookingModel.find(filter)
       .sort({ scheduledStart: 1 })
@@ -228,7 +257,19 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
       .lean(),
     BookingModel.countDocuments(filter),
   ]);
-  res.json({ ...pageOf(items.map((b) => adminBookingSummary(b, { maskPhone: true })), total, q.page, q.limit) });
+  const driverIds = items.map((b) => b.driverId).filter(Boolean);
+  const drivers = driverIds.length
+    ? await DriverModel.find({ _id: { $in: driverIds } }).select("name employeeCode phone").lean()
+    : [];
+  const driverById = new Map(drivers.map((d) => [String(d._id), d]));
+  res.json({
+    ...pageOf(
+      items.map((b) => adminBookingSummary(b, { maskPhone: true, driver: b.driverId ? driverById.get(String(b.driverId)) ?? null : null })),
+      total,
+      q.page,
+      q.limit,
+    ),
+  });
 });
 
 adminRouter.get("/bookings/:id", requirePermission("bookings:read"), async (req, res) => {
@@ -272,6 +313,14 @@ adminRouter.post("/bookings", requirePermission("bookings:create_for_customer"),
     } catch (e) {
       if ((e as { code?: number }).code === 11000) customer = (await CustomerModel.findOne({ phone: b.phone }))!;
       else throw e;
+    }
+  } else if (b.email && !customer.email) {
+    // Keep the staff-entered confirmation address without overwriting an existing one.
+    customer.email = b.email;
+    try {
+      await customer.save();
+    } catch (e) {
+      if ((e as { code?: number }).code !== 11000) throw e;
     }
   }
   const customerId = customer._id as Types.ObjectId;
@@ -331,7 +380,6 @@ adminRouter.post("/bookings", requirePermission("bookings:create_for_customer"),
         status: "requested",
         fareEstimate: { total: estimate.total, lines: estimate.lines, usesUnconfirmedRules: estimate.usesUnconfirmedRules, computedAt: now, settingsVersion: version },
         statusHistory: [{ from: null, to: "requested", actorId: staffId, actorKind: "staff", at: now }],
-        guestEmail: b.email,
         source: b.source,
       });
     } catch (e) {
@@ -399,7 +447,7 @@ function adminBookingView(b: Record<string, any>, opts: { maskPhone?: boolean } 
   };
 }
 
-function adminBookingSummary(b: Record<string, any>, opts: { maskPhone?: boolean } = {}) {
+function adminBookingSummary(b: Record<string, any>, opts: { maskPhone?: boolean; driver?: Record<string, any> | null } = {}) {
   const phone = b.customerSnapshot?.phone as string | undefined;
   return {
     id: String(b._id),
@@ -412,6 +460,7 @@ function adminBookingSummary(b: Record<string, any>, opts: { maskPhone?: boolean
     scheduledStart: b.scheduledStart,
     scheduledEnd: b.scheduledEnd,
     driverId: b.driverId ? String(b.driverId) : null,
+    driver: opts.driver ?? null,
     fareEstimate: b.fareEstimate,
     finalFare: b.finalFare ?? null,
     source: b.source ?? "website",
@@ -870,6 +919,67 @@ adminRouter.post("/drivers/:id/portal-pin", requirePermission("drivers:write"), 
   res.status(201).json({ employeeCode: d.employeeCode, pin });
 });
 
+/**
+ * Bulk-issues portal PINs for onboarding. Defaults to active drivers who have
+ * never been issued a PIN; pass `onlyMissing: false` (or explicit `driverIds`)
+ * to reissue. PINs are returned once and never stored in plain text.
+ */
+const bulkPinSchema = z.object({
+  driverIds: z.array(objectId).min(1).max(50).optional(),
+  onlyMissing: z.boolean().default(true),
+});
+
+adminRouter.post("/drivers/bulk-portal-pin", requirePermission("drivers:write"), validate(bulkPinSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof bulkPinSchema>;
+  const filter: Record<string, unknown> = { employmentStatus: "active" };
+  if (body.driverIds?.length) filter._id = { $in: body.driverIds };
+  else if (body.onlyMissing) filter.portalPinSetAt = null;
+
+  const drivers = await DriverModel.find(filter).select("employeeCode name tokenVersion portalPinSetAt").limit(50);
+  if (!drivers.length) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      body.driverIds?.length
+        ? "No active drivers matched the selection."
+        : "All active drivers already have a portal PIN. Use an individual reset if you need a new one.",
+    );
+  }
+
+  const items: Array<{ driverId: string; employeeCode: string; name: string; pin: string }> = [];
+  for (const driver of drivers) {
+    const pin = String(randomInt(100000, 1000000));
+    driver.set({
+      portalPinHash: await bcrypt.hash(pin, 12),
+      portalPinSetAt: new Date(),
+      tokenVersion: (driver.tokenVersion ?? 0) + 1,
+    });
+    await driver.save();
+    await audit({
+      actorId: req.principal!.id,
+      actorKind: "staff",
+      actorRole: req.principal!.role,
+      action: "driver.portal_pin_reset",
+      entityType: "Driver",
+      entityId: String(driver._id),
+      after: { employeeCode: driver.employeeCode, bulk: true },
+    });
+    items.push({ driverId: String(driver._id), employeeCode: driver.employeeCode, name: driver.name, pin });
+  }
+
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "driver.bulk_portal_pin",
+    entityType: "Driver",
+    entityId: "bulk",
+    after: { count: items.length, employeeCodes: items.map((i) => i.employeeCode) },
+  });
+
+  res.status(201).json({ items, count: items.length });
+});
+
 const HIRING_ITEMS = ["idProof", "licence", "policeVerification", "testDrive", "references", "codeOfConduct"] as const;
 
 /** Hiring checklist tick (ID, licence, police verification, test drive, references, conduct). */
@@ -968,12 +1078,109 @@ adminRouter.post("/availability-blocks", requirePermission("availability:write")
   })
     .select("bookingNumber scheduledStart scheduledEnd")
     .lean();
-  const block = await AvailabilityBlockModel.create({ ...body, createdBy: new Types.ObjectId(req.principal!.id) });
-  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "availability.block_create", entityType: "AvailabilityBlock", entityId: String(block._id), after: body });
+  const block = await AvailabilityBlockModel.create({
+    ...body,
+    status: "approved",
+    requestedByKind: "staff",
+    requestedById: new Types.ObjectId(req.principal!.id),
+    createdBy: new Types.ObjectId(req.principal!.id),
+    decidedBy: new Types.ObjectId(req.principal!.id),
+    decidedAt: new Date(),
+  });
+  await audit({ actorId: req.principal!.id, actorKind: "staff", actorRole: req.principal!.role, action: "availability.block_create", entityType: "AvailabilityBlock", entityId: String(block._id), after: { ...body, status: "approved" } });
   res.status(201).json({
     block,
     warnings: overlapping.map((b) => ({ bookingNumber: b.bookingNumber, start: b.scheduledStart, end: b.scheduledEnd })),
   });
+});
+
+/** Removes a leave/unavailable block. The audit entry keeps the deleted record. */
+adminRouter.delete("/availability-blocks/:id", requirePermission("availability:write"), async (req, res) => {
+  const block = await AvailabilityBlockModel.findById(idParam(req)).lean();
+  if (!block) throw new AppError(404, "NOT_FOUND", "Availability block not found.");
+  await AvailabilityBlockModel.deleteOne({ _id: block._id });
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "availability.block_delete",
+    entityType: "AvailabilityBlock",
+    entityId: String(block._id),
+    before: {
+      driverId: String(block.driverId),
+      startAt: block.startAt,
+      endAt: block.endAt,
+      type: block.type,
+      reason: block.reason,
+      status: block.status ?? "approved",
+    },
+  });
+  res.json({ ok: true });
+});
+
+const blockDecisionSchema = z
+  .object({
+    decision: z.enum(["approve", "reject"]),
+    note: z.string().trim().max(500).optional(),
+  })
+  .superRefine((b, ctx) => {
+    if (b.decision === "reject" && (!b.note || b.note.length < 3)) {
+      ctx.addIssue({ code: "custom", path: ["note"], message: "Give a short reason for rejecting the request." });
+    }
+  });
+
+/** Approves or rejects a driver-submitted leave/unavailable request. */
+adminRouter.patch("/availability-blocks/:id/decision", requirePermission("availability:write"), validate(blockDecisionSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof blockDecisionSchema>;
+  const block = await AvailabilityBlockModel.findById(idParam(req)).lean();
+  if (!block) throw new AppError(404, "NOT_FOUND", "Availability block not found.");
+  if ((block.status ?? "approved") !== "pending") {
+    throw new AppError(409, "CONFLICT", "Only pending driver requests can be approved or rejected.");
+  }
+
+  const status = body.decision === "approve" ? "approved" : "rejected";
+  const now = new Date();
+  const updated = await AvailabilityBlockModel.findByIdAndUpdate(
+    block._id,
+    {
+      $set: {
+        status,
+        decidedBy: new Types.ObjectId(req.principal!.id),
+        decidedAt: now,
+        ...(body.note ? { decisionNote: body.note } : {}),
+      },
+    },
+    { returnDocument: "after" },
+  ).lean();
+
+  let warnings: Array<{ bookingNumber: string; start: Date; end: Date }> = [];
+  if (status === "approved") {
+    const { settings } = await getActiveSettings();
+    const buf = settings.policy.driverBufferMinutes.value;
+    const overlapping = await BookingModel.find({
+      driverId: block.driverId,
+      status: { $nin: ["completed", "cancelled", "rejected", "customer_no_show"] },
+      scheduledStart: { $lt: new Date(block.endAt.getTime() + buf * 60_000) },
+      scheduledEnd: { $gt: new Date(block.startAt.getTime() - buf * 60_000) },
+    })
+      .select("bookingNumber scheduledStart scheduledEnd")
+      .lean();
+    warnings = overlapping.map((b) => ({ bookingNumber: b.bookingNumber, start: b.scheduledStart, end: b.scheduledEnd }));
+  }
+
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "availability.request_decide",
+    entityType: "AvailabilityBlock",
+    entityId: String(block._id),
+    before: { status: block.status ?? "approved" },
+    after: { status, note: body.note },
+    reason: body.note,
+  });
+
+  res.json({ block: updated, warnings });
 });
 
 // ---------- Customers ----------
@@ -1203,8 +1410,21 @@ adminRouter.get("/staff", requirePermission("staff:manage"), async (_req, res) =
 adminRouter.get("/availability-blocks", requirePermission("drivers:read"), async (req, res) => {
   const filter: Record<string, unknown> = {};
   if (req.query.driverId && Types.ObjectId.isValid(String(req.query.driverId))) filter.driverId = String(req.query.driverId);
+  const status = String(req.query.status ?? "");
+  if (["pending", "approved", "rejected", "cancelled"].includes(status)) filter.status = status;
   const items = await AvailabilityBlockModel.find(filter).sort({ startAt: -1 }).limit(300).lean();
-  res.json({ items });
+  const driverIds = [...new Set(items.map((i) => String(i.driverId)))];
+  const drivers = driverIds.length
+    ? await DriverModel.find({ _id: { $in: driverIds } }).select("name employeeCode").lean()
+    : [];
+  const driverById = new Map(drivers.map((d) => [String(d._id), d]));
+  res.json({
+    items: items.map((i) => ({
+      ...i,
+      status: i.status ?? "approved",
+      driver: driverById.get(String(i.driverId)) ?? null,
+    })),
+  });
 });
 
 // ---------- Driver options for one booking (eligibility + conflicts) ----------
@@ -1225,6 +1445,7 @@ adminRouter.get("/bookings/:id/driver-options", requirePermission("drivers:read"
     }).select("bookingNumber scheduledStart scheduledEnd").lean();
     const blocks = await AvailabilityBlockModel.find({
       driverId: d._id,
+      status: { $nin: ["rejected", "cancelled"] },
       startAt: { $lt: new Date(b.scheduledEnd.getTime() + buffer * 60_000) },
       endAt: { $gt: new Date(b.scheduledStart.getTime() - buffer * 60_000) },
     }).lean();
