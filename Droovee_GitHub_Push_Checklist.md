@@ -101,7 +101,7 @@ Use a local API + web server and a real browser for the remaining checks:
 - [x] Sidebar has no **Business** entry.
 - [x] `Payments & reports` and `Reports` remain.
 - [x] Guest booking triggers the alarm banner.
-- [x] Staff-created booking does **not** trigger the alarm in the browser.
+- [ ] Staff-created booking does **not** trigger the alarm in the browser (API classifies staff bookings as `staff`; browser check still pending).
 - [ ] Click once in the console, then confirm the alarm sound plays.
 - [ ] Sound repeats every 10 seconds and stops after 2 minutes.
 - [x] Mute silences the alarm but keeps the banner.
