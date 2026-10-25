@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API build and unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: droovee-api
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: droovee-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build API
+        run: npm run build
+
+      - name: Run unit tests
+        run: node --test dist/test/domain.test.js dist/test/lib.test.js
+
+  web:
+    name: Web typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: droovee-web
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: droovee-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck web app
+        run: npm run typecheck
+
+      - name: Build web app
+        run: npm run build
+
+  # Integration tests are intentionally not required yet. They currently fail on
+  # pre-existing OTP-required registration expectations and should be re-enabled
+  # once those tests are updated.
