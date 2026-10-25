@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
-import { BookingModel } from "../models";
+import { BookingModel, AvailabilityBlockModel } from "../models";
 import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
@@ -18,7 +18,7 @@ import { driverLimiter, driverLoginLimiter } from "../lib/rateLimit";
 import { authenticateDriver } from "../middleware/auth";
 import { clearDriverCookie, setDriverCookie } from "../lib/cookies";
 import { config } from "../config";
-import { canTransition, BookingStatus } from "../domain/status";
+import { canTransition, BookingStatus, TERMINAL_STATUSES } from "../domain/status";
 
 export const driverRouter = Router();
 driverRouter.use(driverLimiter());
@@ -247,6 +247,7 @@ driverRouter.post("/login", driverLoginLimiter(), validate(driverLoginSchema), a
       experienceYears: driver.experienceYears,
       languages: driver.languages,
     },
+    expiresInSeconds: config.driverTokenTtlSeconds,
   });
 });
 
@@ -305,15 +306,142 @@ driverRouter.get("/portal/jobs", authenticateDriver, async (req, res) => {
       transmission: b.transmission,
       instructions: b.instructions,
       finalFare: b.finalFare ?? b.fareEstimate?.total,
+      paymentPreference: b.paymentPreference ?? null,
       driverConfirmed: confirmed,
       driverArrived: Boolean((b as Record<string, unknown>).driverArrivedAt),
       tripEnded: Boolean((b as Record<string, unknown>).tripEndedByDriverAt),
+      tripEndedAt: (b as Record<string, unknown>).tripEndedByDriverAt ?? null,
       photoCount: Array.isArray(b.carPhotos) ? b.carPhotos.length : 0,
       cashCollected,
+      cashSettlement: b.cashSettlement ?? null,
     };
   });
 
   res.json({ items });
+});
+
+/** Driver Mobile Portal — leave / unavailable requests (admin decides). */
+const leaveRequestSchema = z
+  .object({
+    type: z.enum(["leave", "unavailable", "shift_off"]).default("leave"),
+    startAt: z.coerce.date(),
+    endAt: z.coerce.date(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine((b) => b.endAt > b.startAt, { message: "End must be after start.", path: ["endAt"] });
+
+function leaveView(b: Record<string, any>) {
+  return {
+    id: String(b._id),
+    driverId: String(b.driverId),
+    type: b.type,
+    startAt: b.startAt,
+    endAt: b.endAt,
+    reason: b.reason ?? null,
+    status: b.status ?? "approved",
+    requestedByKind: b.requestedByKind ?? "staff",
+    decisionNote: b.decisionNote ?? null,
+    decidedAt: b.decidedAt ?? null,
+    createdAt: b.createdAt ?? null,
+  };
+}
+
+driverRouter.get("/portal/leave", authenticateDriver, async (req, res) => {
+  const items = await AvailabilityBlockModel.find({ driverId: new Types.ObjectId(req.driver!.id) })
+    .sort({ startAt: -1 })
+    .limit(50)
+    .lean();
+  res.json({ items: items.map(leaveView) });
+});
+
+driverRouter.post("/portal/leave", authenticateDriver, validate(leaveRequestSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof leaveRequestSchema>;
+  const driverId = new Types.ObjectId(req.driver!.id);
+  const now = Date.now();
+
+  if (body.startAt.getTime() < now - 5 * 60_000) {
+    throw new AppError(400, "VALIDATION_ERROR", "Leave must start in the future.", { startAt: "Choose a future start time." });
+  }
+  if (body.endAt.getTime() - body.startAt.getTime() > 31 * 86_400_000) {
+    throw new AppError(400, "VALIDATION_ERROR", "A leave request can cover at most 31 days.", { endAt: "Shorten the period." });
+  }
+
+  const existing = await AvailabilityBlockModel.findOne({
+    driverId,
+    status: { $nin: ["rejected", "cancelled"] },
+    startAt: { $lt: body.endAt },
+    endAt: { $gt: body.startAt },
+  }).lean();
+  if (existing) {
+    throw new AppError(409, "CONFLICT", "You already have leave or an unavailable period recorded for these dates.");
+  }
+
+  const bookings = await BookingModel.find({
+    driverId,
+    status: { $nin: TERMINAL_STATUSES },
+    scheduledStart: { $lt: body.endAt },
+    scheduledEnd: { $gt: body.startAt },
+  })
+    .select("bookingNumber scheduledStart scheduledEnd")
+    .lean();
+
+  const block = await AvailabilityBlockModel.create({
+    driverId,
+    startAt: body.startAt,
+    endAt: body.endAt,
+    type: body.type,
+    reason: body.reason,
+    status: "pending",
+    requestedByKind: "driver",
+    requestedById: driverId,
+  });
+
+  await audit({
+    actorId: String(driverId),
+    actorKind: "system",
+    actorRole: "driver",
+    action: "availability.request_create",
+    entityType: "AvailabilityBlock",
+    entityId: String(block._id),
+    after: { type: body.type, startAt: body.startAt, endAt: body.endAt, reason: body.reason, status: "pending" },
+    reason: body.reason,
+  });
+
+  res.status(201).json({
+    block: leaveView(block.toObject()),
+    warnings: bookings.map((b) => ({ bookingNumber: b.bookingNumber, start: b.scheduledStart, end: b.scheduledEnd })),
+  });
+});
+
+driverRouter.delete("/portal/leave/:id", authenticateDriver, async (req, res) => {
+  const id = String(req.params.id);
+  if (!Types.ObjectId.isValid(id)) throw new AppError(400, "VALIDATION_ERROR", "Invalid request id.");
+  const driverId = new Types.ObjectId(req.driver!.id);
+  const block = await AvailabilityBlockModel.findOne({ _id: id, driverId }).lean();
+  if (!block) throw new AppError(404, "NOT_FOUND", "Leave request not found.");
+  if ((block.status ?? "approved") !== "pending") {
+    throw new AppError(409, "CONFLICT", "Only pending requests can be cancelled.");
+  }
+
+  const updated = await AvailabilityBlockModel.findByIdAndUpdate(
+    block._id,
+    { $set: { status: "cancelled", decidedAt: new Date(), decisionNote: "Cancelled by driver" } },
+    { returnDocument: "after" },
+  ).lean();
+
+  await audit({
+    actorId: String(driverId),
+    actorKind: "system",
+    actorRole: "driver",
+    action: "availability.request_cancel",
+    entityType: "AvailabilityBlock",
+    entityId: String(block._id),
+    before: { status: block.status ?? "approved" },
+    after: { status: "cancelled" },
+    reason: "Cancelled by driver",
+  });
+
+  res.json({ ok: true, block: updated ? leaveView(updated) : null });
 });
 
 /** Driver Mobile Portal — milestone updates & cash collection. */

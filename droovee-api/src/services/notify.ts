@@ -55,8 +55,8 @@ export async function notifyBookingEvent(
     const b = await BookingModel.findById(bookingId).lean();
     if (!b) return;
     const customer = await CustomerModel.findById(b.customerId).select("name email").lean();
-    const to = (b as { guestEmail?: string }).guestEmail ?? customer?.email ?? null;
-    const customerName = (b as any).guestName ?? customer?.name ?? "Customer";
+    const to = customer?.email ?? null;
+    const customerName = customer?.name ?? "Customer";
 
     const msg = EVENT_TEXT[event]({ bookingNumber: b.bookingNumber }, opts.driverText ?? opts.cancelNote);
     let subject = msg.subject;

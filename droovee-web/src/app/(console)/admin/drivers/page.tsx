@@ -31,6 +31,8 @@ export default function DriversPage() {
   const [topic, setTopic] = useState("");
   const [trainer, setTrainer] = useState("");
   const [uniformSize, setUniformSize] = useState("");
+  const [bulkPins, setBulkPins] = useState<Array<{ driverId: string; employeeCode: string; name: string; pin: string }> | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   function toggleLang(l: string) {
     setForm((f) => ({ ...f, langs: f.langs.includes(l) ? f.langs.filter((x) => x !== l) : [...f.langs, l] }));
@@ -130,10 +132,43 @@ export default function DriversPage() {
     try {
       const r = await api<{ pin: string }>(`/admin/drivers/${id}/portal-pin`, { method: "POST", body: {} });
       setNotice(`Portal PIN for ${name}: ${r.pin} — share it privately with the driver. It will not be shown again.`);
+      load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not generate a portal PIN.");
     }
   }
+
+  async function generateMissingPins() {
+    setError(null);
+    setNotice(null);
+    setBulkBusy(true);
+    try {
+      const r = await api<{ items: Array<{ driverId: string; employeeCode: string; name: string; pin: string }>; count: number }>(
+        "/admin/drivers/bulk-portal-pin",
+        { method: "POST", body: {} },
+      );
+      setBulkPins(r.items);
+      setNotice(`${r.count} portal PIN${r.count === 1 ? "" : "s"} generated. Share each PIN privately — they are shown once.`);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not generate portal PINs.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function copyBulkPins() {
+    if (!bulkPins) return;
+    const text = bulkPins.map((p) => `${p.name} (${p.employeeCode}): ${p.pin}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("Portal PINs copied to the clipboard.");
+    } catch {
+      setError("Could not access the clipboard. Copy the PINs from the table.");
+    }
+  }
+
+  const missingPinCount = items?.filter((d) => d.employmentStatus === "active" && !d.portalPinSetAt).length ?? 0;
 
   const focus = items?.find((d) => d._id === focusId) ?? null;
 
@@ -142,6 +177,50 @@ export default function DriversPage() {
       <PageTitle title="Drivers" subtitle="Company driver team. Driver contact details are visible to staff only." />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       {notice && <div className="mb-4"><Alert tone="success">{notice}</Alert></div>}
+
+      {canWrite && (
+        <Card className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">Driver portal onboarding</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {items === null
+                ? "Loading driver PIN status…"
+                : missingPinCount > 0
+                  ? `${missingPinCount} active driver${missingPinCount === 1 ? "" : "s"} still need a portal PIN.`
+                  : "Every active driver has a portal PIN."}
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={generateMissingPins} disabled={bulkBusy || items === null || missingPinCount === 0}>
+            {bulkBusy ? "Generating…" : "Generate missing PINs"}
+          </Button>
+        </Card>
+      )}
+
+      {bulkPins && bulkPins.length > 0 && (
+        <Card className="mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">New portal PINs (shown once)</h2>
+              <p className="mt-1 text-sm text-slate-600">Store these securely and share each PIN privately with the driver.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" onClick={copyBulkPins}>Copy all</Button>
+              <Button type="button" variant="secondary" onClick={() => setBulkPins(null)}>Close</Button>
+            </div>
+          </div>
+          <div className="mt-4">
+            <Table head={["Driver", "Code", "PIN"]}>
+              {bulkPins.map((p) => (
+                <tr key={p.driverId}>
+                  <td className="px-4 py-3">{p.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{p.employeeCode}</td>
+                  <td className="px-4 py-3 font-mono text-lg tracking-widest">{p.pin}</td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+        </Card>
+      )}
 
       {canWrite && (
         <Card className="mb-6">
@@ -174,7 +253,7 @@ export default function DriversPage() {
       {items && items.length === 0 && <Empty title="No drivers yet" />}
       {items && items.length > 0 && (
         <>
-          <Table head={["Code", "Name", "Phone", "Exp", "Languages", "Hiring", "Licence expiry", "Zones", "Status"]}>
+          <Table head={["Code", "Name", "Phone", "Exp", "Languages", "Hiring", "Licence expiry", "Zones", "Portal PIN", "Status"]}>
             {items.map((d) => (
               <tr key={d._id} className={focusId === d._id ? "bg-emerald-50" : "hover:bg-slate-50"}>
                 <td className="px-4 py-3 font-mono">{d.employeeCode}</td>
@@ -185,6 +264,13 @@ export default function DriversPage() {
                 <td className="px-4 py-3">{hiringCount(d)}/6</td>
               <td className="px-4 py-3">{dateOnly(d.licenceExpiresAt)}</td>
               <td className="px-4 py-3">{(d.serviceZones ?? []).join(", ") || "—"}</td>
+              <td className="px-4 py-3">
+                {d.portalPinSetAt ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Set</span>
+                ) : (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Not set</span>
+                )}
+              </td>
               <td className="px-4 py-3">
                 {canWrite ? (
                   <Select value={d.employmentStatus} onChange={(e) => setStatus(d._id, e.target.value)} className="!py-1 !text-xs">

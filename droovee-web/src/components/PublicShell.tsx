@@ -65,7 +65,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                   My Trips
                 </Link>
                 <Link
-                  href="/book/user"
+                  href="/book"
                   className="rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-emerald-400"
                 >
                   Book Driver
@@ -107,7 +107,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
             )}
           </nav>
 
-          {/* Mobile Right Controls: Fast Book + Hamburger */}
+          {/* Mobile Right Controls: Book + Hamburger */}
           <div className="flex items-center gap-2 md:hidden">
             <Link
               href="/book"
@@ -211,7 +211,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-[#0F172A]/95 p-3 backdrop-blur-md md:hidden">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <Link
-            href={session?.kind === "customer" ? "/book/user" : "/book"}
+            href="/book"
             className="droovee-sticky-cta flex-1 py-3 text-center text-sm font-bold text-white shadow-lg"
           >
             Book a Driver Now

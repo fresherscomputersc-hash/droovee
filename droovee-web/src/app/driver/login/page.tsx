@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -11,7 +11,14 @@ export default function DriverLoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired")) setNotice("Your session expired. Sign in again to continue.");
+    else if (params.get("signedout")) setNotice("You have been signed out.");
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +76,7 @@ export default function DriverLoginPage() {
           <p className="mt-1 text-sm text-slate-600">
             Enter your mobile number or Droovee Employee Code and the 6-digit portal PIN issued by dispatch.
           </p>
+          {notice && <div className="mt-4"><Alert tone="warn">{notice}</Alert></div>}
 
           <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
             {error && <Alert>{error}</Alert>}

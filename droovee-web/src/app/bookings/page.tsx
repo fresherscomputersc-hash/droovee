@@ -32,7 +32,7 @@ export default function MyBookingsPage() {
   return (
     <PublicShell>
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <PageTitle title="My bookings" subtitle="Status, driver details and fare for each booking." actions={<LinkButton href="/book/user">Book a driver</LinkButton>} />
+        <PageTitle title="My bookings" subtitle="Status, driver details and fare for each booking." actions={<LinkButton href="/book">Book a driver</LinkButton>} />
         {referralCode && (
           <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-4 text-sm ring-1 ring-emerald-200">
             <span>🎁 Your referral code: <strong className="font-mono">{referralCode}</strong> — friends enter it when booking, you earn ₹100 credit when their trip completes.</span>

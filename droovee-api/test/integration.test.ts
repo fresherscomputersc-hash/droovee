@@ -45,6 +45,33 @@ async function staffLogin(email: string) {
   return r.body.accessToken as string;
 }
 
+/** Logs in through the driver portal and returns the httpOnly session cookie. */
+async function driverLogin(identifier: string, pin: string): Promise<string> {
+  const res = await fetch(base + "/api/v1/driver/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ identifier, pin }),
+  });
+  const text = await res.text();
+  assert.equal(res.status, 200, text);
+  const setCookie = res.headers.get("set-cookie");
+  assert.ok(setCookie, "driver login must set a session cookie");
+  return setCookie.split(";")[0];
+}
+
+async function driverCall(method: string, path: string, cookie: string, body?: unknown): Promise<{ status: number; body: Json }> {
+  const res = await fetch(base + path, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      cookie,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  return { status: res.status, body: text ? JSON.parse(text) : {} };
+}
+
 /**
  * Staff write helper: reads the booking's current version and sends it as
  * expectedVersion (required — stale writes must 409, not overwrite).
@@ -208,6 +235,18 @@ test("booking: customer creates a booking with password-only login", async () =>
   assert.equal(created.body.status, "requested");
   // 2 h hourly: ₹99 first-hour coupon + ₹129 extra hour = ₹228
   assert.equal(created.body.estimate.total, 228);
+});
+
+test("guest booking endpoint is removed", async () => {
+  const r = await call("POST", "/api/v1/bookings/guest", undefined, {
+    serviceType: "hourly",
+    pickup: { address: "Jayadev Vihar, Bhubaneswar" },
+    scheduledStart: SLOT_A.start,
+    durationHours: 2,
+    carModel: "Maruti Swift",
+    transmission: "manual",
+  });
+  assert.equal(r.status, 404);
 });
 
 test("alarm: customer bookings appear after the cursor; staff bookings are marked staff", async () => {
@@ -418,22 +457,10 @@ test("forgot/reset password issues a one-time link and invalidates the old passw
   assert.equal(newLogin.status, 200, JSON.stringify(newLogin.body));
 });
 
-test("guest can request cancellation from tracking with booking ID + mobile", async () => {
+test("customer can request cancellation from tracking with booking ID + mobile", async () => {
   const phone = "9812300001";
-  const made = await call("POST", "/api/v1/bookings/guest", undefined, {
-    name: "Guest Canceller",
-    phone,
-    serviceType: "hourly",
-    immediate: false,
-    pickup: { address: "Jayadev Vihar, Bhubaneswar" },
-    scheduledStart: SLOT_C.start,
-    durationHours: 2,
-    carModel: "Maruti Swift",
-    transmission: "manual",
-    instructions: "Call on arrival",
-    paymentPreference: "cash_upi",
-    agreedToTerms: true,
-  });
+  const token = await registerCustomer(phone, "Track Canceller");
+  const made = await call("POST", "/api/v1/bookings", token, bookingBody(SLOT_C, { instructions: "Call on arrival" }));
   assert.equal(made.status, 201, JSON.stringify(made.body));
 
   // Wrong mobile must not reveal or modify the booking.
@@ -512,4 +539,238 @@ test("audit log records assignment, override and status change", async () => {
   assert.ok(actions.includes("booking.assign"));
   assert.ok(actions.includes("booking.status_change"));
   assert.ok(actions.includes("booking.contact_log"));
+});
+
+test("dispatch queue filters by assignment, service and free text", async () => {
+  const token = await registerCustomer("9812300101", "Dispatch Tester");
+  const made = await call(
+    "POST",
+    "/api/v1/bookings",
+    token,
+    bookingBody({ start: "2031-03-01T10:00:00+05:30", end: "2031-03-01T12:00:00+05:30" }),
+  );
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const number = made.body.bookingNumber as string;
+
+  const owner = await staffLogin("owner@droovee.test");
+  const all = await call("GET", "/api/v1/admin/bookings?limit=200", owner);
+  assert.equal(all.status, 200);
+  assert.ok(all.body.items.some((b: Json) => b.driverId), "default list must include assigned bookings");
+  assert.ok(all.body.items.some((b: Json) => !b.driverId), "default list must include unassigned bookings");
+
+  const found = await call("GET", `/api/v1/admin/bookings?q=${encodeURIComponent(number)}`, owner);
+  assert.equal(found.status, 200, JSON.stringify(found.body));
+  assert.ok(found.body.items.some((b: Json) => b.bookingNumber === number));
+
+  const byCustomer = await call("GET", `/api/v1/admin/bookings?q=${encodeURIComponent("Dispatch Tester")}`, owner);
+  assert.equal(byCustomer.status, 200);
+  assert.ok(byCustomer.body.items.some((b: Json) => b.customer?.name === "Dispatch Tester"));
+
+  const hourly = await call("GET", "/api/v1/admin/bookings?serviceType=hourly&limit=200", owner);
+  assert.equal(hourly.status, 200);
+  assert.ok(hourly.body.items.length > 0);
+  assert.ok(hourly.body.items.every((b: Json) => b.serviceType === "hourly"));
+
+  const unassigned = await call("GET", "/api/v1/admin/bookings?assigned=false&limit=200", owner);
+  assert.equal(unassigned.status, 200);
+  assert.ok(unassigned.body.items.length > 0);
+  assert.ok(unassigned.body.items.every((b: Json) => !b.driverId && !b.driver));
+
+  const assigned = await call("GET", "/api/v1/admin/bookings?assigned=true&limit=200", owner);
+  assert.equal(assigned.status, 200);
+  assert.ok(assigned.body.items.length > 0);
+  assert.ok(assigned.body.items.every((b: Json) => b.driverId && b.driver?.employeeCode));
+});
+
+test("bulk portal PIN onboarding issues one PIN per active driver, once", async () => {
+  const owner = await staffLogin("owner@droovee.test");
+  const first = await call("POST", "/api/v1/admin/drivers/bulk-portal-pin", owner, {});
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  assert.equal(first.body.count, 3);
+  assert.equal(first.body.items.length, 3);
+  for (const item of first.body.items) {
+    assert.match(item.pin, /^\d{6}$/);
+    assert.ok(item.employeeCode);
+    assert.ok(item.name);
+  }
+
+  const again = await call("POST", "/api/v1/admin/drivers/bulk-portal-pin", owner, {});
+  assert.equal(again.status, 400, JSON.stringify(again.body));
+
+  const drivers = await call("GET", "/api/v1/admin/drivers", owner);
+  assert.equal(drivers.status, 200);
+  assert.ok(drivers.body.items.every((d: Json) => d.employmentStatus !== "active" || d.portalPinSetAt));
+  assert.ok(drivers.body.items.every((d: Json) => !("portalPinHash" in d)));
+
+  const audit = await call("GET", "/api/v1/admin/audit-logs?action=driver.bulk_portal_pin", owner);
+  assert.equal(audit.status, 200);
+  assert.ok(audit.body.items.some((a: Json) => a.after?.count === 3));
+});
+
+test("availability block can be removed and the removal is audited", async () => {
+  const owner = await staffLogin("owner@droovee.test");
+  const drivers = await call("GET", "/api/v1/admin/drivers", owner);
+  const driverId = drivers.body.items[0]._id as string;
+
+  const created = await call("POST", "/api/v1/admin/availability-blocks", owner, {
+    driverId,
+    startAt: "2031-04-01T00:00:00+05:30",
+    endAt: "2031-04-02T00:00:00+05:30",
+    type: "leave",
+    reason: "Family function",
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const blockId = created.body.block._id as string;
+
+  const removed = await call("DELETE", `/api/v1/admin/availability-blocks/${blockId}`, owner);
+  assert.equal(removed.status, 200, JSON.stringify(removed.body));
+
+  const list = await call("GET", `/api/v1/admin/availability-blocks?driverId=${driverId}`, owner);
+  assert.equal(list.status, 200);
+  assert.ok(!list.body.items.some((b: Json) => b._id === blockId));
+
+  const audit = await call("GET", "/api/v1/admin/audit-logs?action=availability.block_delete", owner);
+  assert.equal(audit.status, 200);
+  assert.ok(audit.body.items.some((a: Json) => a.entityId === blockId));
+});
+
+test("driver portal: own trips only, leave lifecycle, and expired-session rejection", async () => {
+  const bcrypt = (await import("bcryptjs")).default;
+  const pin = "246810";
+  const hash = await bcrypt.hash(pin, 4);
+  const d1 = await models.DriverModel.findOneAndUpdate(
+    { employeeCode: "D-001" },
+    { $set: { portalPinHash: hash, portalPinSetAt: new Date() } },
+    { returnDocument: "after" },
+  ).lean();
+  const d3 = await models.DriverModel.findOneAndUpdate(
+    { employeeCode: "D-003" },
+    { $set: { portalPinHash: hash, portalPinSetAt: new Date() } },
+    { returnDocument: "after" },
+  ).lean();
+  assert.ok(d1 && d3);
+
+  const c1 = await driverLogin("D-001", pin);
+  const c3 = await driverLogin("D-003", pin);
+
+  const j1 = await driverCall("GET", "/api/v1/driver/portal/jobs", c1);
+  const j3 = await driverCall("GET", "/api/v1/driver/portal/jobs", c3);
+  assert.equal(j1.status, 200, JSON.stringify(j1.body));
+  assert.equal(j3.status, 200, JSON.stringify(j3.body));
+  assert.ok(j1.body.items.length > 0, "D-001 should have assigned trips");
+  assert.ok(j3.body.items.length > 0, "D-003 should have the concurrency-test trip");
+
+  const ids1 = new Set(j1.body.items.map((j: Json) => j.id));
+  const ids3 = new Set(j3.body.items.map((j: Json) => j.id));
+  assert.ok([...ids1].every((id) => !ids3.has(id)), "drivers must not see each other's trips");
+  for (const id of ids1) {
+    const b = await models.BookingModel.findById(id).lean();
+    assert.equal(String(b?.driverId), String(d1._id));
+  }
+  for (const id of ids3) {
+    const b = await models.BookingModel.findById(id).lean();
+    assert.equal(String(b?.driverId), String(d3._id));
+  }
+
+  // A driver cannot act on another driver's booking.
+  const cross = await driverCall("POST", `/api/v1/driver/portal/jobs/${[...ids1][0]}/action`, c3, { action: "confirm" });
+  assert.equal(cross.status, 404, JSON.stringify(cross.body));
+
+  // No session -> 401.
+  assert.equal((await call("GET", "/api/v1/driver/portal/jobs")).status, 401);
+
+  // Expired token -> 401 (the web redirects to /driver/login?expired=1 on this).
+  const { signAccess } = await import("../src/lib/tokens");
+  const expired = signAccess({ sub: String(d1._id), kind: "driver", v: d1.tokenVersion ?? 0 }, -1);
+  assert.equal((await call("GET", "/api/v1/driver/portal/jobs", expired)).status, 401);
+
+  // Leave request lifecycle: create -> pending -> admin approve -> driver sees approved.
+  const owner = await staffLogin("owner@droovee.test");
+  const leaveId = await (async () => {
+    const created = await driverCall("POST", "/api/v1/driver/portal/leave", c1, {
+      type: "leave",
+      startAt: "2031-06-01T00:00:00+05:30",
+      endAt: "2031-06-02T00:00:00+05:30",
+      reason: "Family function",
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.block.status, "pending");
+    assert.equal(created.body.block.requestedByKind, "driver");
+    return created.body.block.id as string;
+  })();
+
+  // Overlap is rejected.
+  const overlap = await driverCall("POST", "/api/v1/driver/portal/leave", c1, {
+    type: "unavailable",
+    startAt: "2031-06-01T12:00:00+05:30",
+    endAt: "2031-06-03T00:00:00+05:30",
+    reason: "Overlapping request",
+  });
+  assert.equal(overlap.status, 409, JSON.stringify(overlap.body));
+
+  // Driver sees own pending request; another driver does not.
+  const mine = await driverCall("GET", "/api/v1/driver/portal/leave", c1);
+  assert.equal(mine.status, 200);
+  assert.ok(mine.body.items.some((r: Json) => r.id === leaveId && r.status === "pending"));
+  const theirs = await driverCall("GET", "/api/v1/driver/portal/leave", c3);
+  assert.equal(theirs.status, 200);
+  assert.ok(!theirs.body.items.some((r: Json) => r.id === leaveId));
+
+  // Admin pending queue includes it, then approve.
+  const pending = await call("GET", "/api/v1/admin/availability-blocks?status=pending", owner);
+  assert.equal(pending.status, 200, JSON.stringify(pending.body));
+  assert.ok(pending.body.items.some((b: Json) => b._id === leaveId && b.driver?.employeeCode === "D-001"));
+
+  const approved = await call("PATCH", `/api/v1/admin/availability-blocks/${leaveId}/decision`, owner, { decision: "approve" });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body));
+  assert.equal(approved.body.block.status, "approved");
+
+  // Approved requests cannot be cancelled by the driver.
+  const cancelApproved = await driverCall("DELETE", `/api/v1/driver/portal/leave/${leaveId}`, c1);
+  assert.equal(cancelApproved.status, 409, JSON.stringify(cancelApproved.body));
+
+  // A second pending request can be cancelled.
+  const second = await driverCall("POST", "/api/v1/driver/portal/leave", c1, {
+    type: "shift_off",
+    startAt: "2031-06-10T00:00:00+05:30",
+    endAt: "2031-06-11T00:00:00+05:30",
+    reason: "Personal work",
+  });
+  assert.equal(second.status, 201, JSON.stringify(second.body));
+  const secondId = second.body.block.id as string;
+  const cancelled = await driverCall("DELETE", `/api/v1/driver/portal/leave/${secondId}`, c1);
+  assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+  assert.equal(cancelled.body.block.status, "cancelled");
+
+  // A third request exercises rejection (note is mandatory) and the rejected state.
+  const third = await driverCall("POST", "/api/v1/driver/portal/leave", c1, {
+    type: "leave",
+    startAt: "2031-06-20T00:00:00+05:30",
+    endAt: "2031-06-21T00:00:00+05:30",
+    reason: "Wedding in family",
+  });
+  assert.equal(third.status, 201, JSON.stringify(third.body));
+  const thirdId = third.body.block.id as string;
+  const rejectNoNote = await call("PATCH", `/api/v1/admin/availability-blocks/${thirdId}/decision`, owner, { decision: "reject" });
+  assert.equal(rejectNoNote.status, 400, JSON.stringify(rejectNoNote.body));
+  const rejected = await call("PATCH", `/api/v1/admin/availability-blocks/${thirdId}/decision`, owner, {
+    decision: "reject",
+    note: "Peak-season coverage is already committed.",
+  });
+  assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+  assert.equal(rejected.body.block.status, "rejected");
+  assert.equal(rejected.body.block.decisionNote, "Peak-season coverage is already committed.");
+  const rejectedView = await driverCall("GET", "/api/v1/driver/portal/leave", c1);
+  assert.ok(rejectedView.body.items.some((r: Json) => r.id === thirdId && r.status === "rejected"));
+
+  // Decisions and cancellations are audited.
+  const createdAudit = await call("GET", "/api/v1/admin/audit-logs?action=availability.request_create", owner);
+  assert.equal(createdAudit.status, 200);
+  assert.ok(createdAudit.body.items.some((a: Json) => a.entityId === leaveId));
+  const decidedAudit = await call("GET", "/api/v1/admin/audit-logs?action=availability.request_decide", owner);
+  assert.equal(decidedAudit.status, 200);
+  assert.ok(decidedAudit.body.items.some((a: Json) => a.entityId === leaveId));
+  const cancelAudit = await call("GET", "/api/v1/admin/audit-logs?action=availability.request_cancel", owner);
+  assert.equal(cancelAudit.status, 200);
+  assert.ok(cancelAudit.body.items.some((a: Json) => a.entityId === secondId));
 });
