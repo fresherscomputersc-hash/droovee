@@ -443,7 +443,7 @@ driverRouter.post("/portal/jobs/:id/action", authenticateDriver, validate(portal
         },
         $inc: { version: 1 },
       },
-      { new: false },
+      { returnDocument: "before" },
     );
     if (!claimed) throw new AppError(409, "CONFLICT", "Cash is already recorded for this booking.");
     try {

@@ -104,7 +104,7 @@ export async function rotateRefresh(raw: string): Promise<RotateResult> {
   const claimed = await SessionModel.findOneAndUpdate(
     { _id: session._id, revokedAt: { $exists: false } },
     { $set: { revokedAt: new Date() } },
-    { new: false },
+    { returnDocument: "before" },
   );
   if (!claimed) return { ok: false, reused: false };
 
