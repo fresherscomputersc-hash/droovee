@@ -79,7 +79,7 @@
   - Added compression and public-response caching headers.
   - Added a server-only middleware JWT check so `/admin/*` does not call `/auth/me` on every page load.
   - Reduced the admin dashboard payload and trimmed the booking list payload.
-- Remaining: deploy, configure Render always-on, and measure the owner’s actual slow pages against the new baseline.
+- Remaining: deploy and measure the owner's actual slow pages against the new baseline.
 
 **Mongoose deprecation warning (from production logs):**
 
@@ -222,9 +222,9 @@
 - [ ] Generate portal PINs for the 4 existing drivers via **Admin → Drivers → Generate new portal PIN**.
 - [ ] Rotate the Atlas password after Render is confirmed working.
 - [ ] Delete the old Atlas user only after Render is confirmed on the new user.
-- [ ] Configure Vercel environment: `API_TARGET=https://droovee.onrender.com` and a server-only `JWT_ACCESS_SECRET` matching Render, so `/admin/*` middleware can verify tokens without an API round-trip.
+- [x] Configure Vercel environment: `API_TARGET=https://droovee.onrender.com` and a server-only `JWT_ACCESS_SECRET` matching Render, so `/admin/*` middleware can verify tokens without an API round-trip. Confirmed by the owner on 2026-10-25.
 - [ ] After the next API deploy, run `npm run db:indexes` once on Render. Production now starts with `autoIndex` disabled and no startup `syncIndexes()`.
-- [ ] Configure Render always-on (preferred) or a 10-minute keepalive.
+- [x] Configure Render always-on (preferred) or a 10-minute keepalive. Confirmed by the owner on 2026-10-25.
 
 ---
 

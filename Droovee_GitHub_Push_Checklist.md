@@ -75,8 +75,8 @@ Expected local web build: **47 routes**.
 
 ### 1.3 Environment readiness — do this before pushing
 
-- [ ] Vercel has `API_TARGET=https://droovee.onrender.com`.
-- [ ] Vercel has `JWT_ACCESS_SECRET` set to the **same value** as Render.
+- [x] Vercel has `API_TARGET=https://droovee.onrender.com`. Confirmed by the owner on 2026-10-25.
+- [x] Vercel has `JWT_ACCESS_SECRET` set to the **same value** as Render. Confirmed by the owner on 2026-10-25.
 - [ ] Render has the matching `JWT_ACCESS_SECRET`.
 - [ ] No secret has been pasted into a tracked file.
 
@@ -223,8 +223,7 @@ Expected:
 
 ### 3.6 Render always-on
 
-- [ ] Preferred: move Render to an always-on instance.
-- [ ] Fallback: configure a 10-minute keepalive ping.
+- [x] Render is on an always-on instance (owner confirmed 2026-10-25); the keepalive fallback is no longer needed.
 - [ ] Confirm `/api/v1/health` is responsive after an idle period.
 
 ### 3.7 Monitor after deploy
@@ -252,9 +251,9 @@ If the deploy causes a problem:
 
 These are not blockers for the push, but they must be handled before considering the release finished:
 
-- [ ] Add `JWT_ACCESS_SECRET` to Vercel.
+- [x] Add `JWT_ACCESS_SECRET` to Vercel (owner confirmed 2026-10-25).
 - [ ] Run `npm run db:indexes` on Render.
-- [ ] Configure Render always-on or keepalive.
+- [x] Configure Render always-on (owner confirmed 2026-10-25).
 - [ ] Generate portal PINs for the four existing drivers.
 - [ ] Rotate the Atlas password after Render is confirmed stable.
 - [ ] Delete the old Atlas user only after Render is confirmed stable.
