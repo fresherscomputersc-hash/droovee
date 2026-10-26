@@ -31,7 +31,12 @@ const otpSchema = new Schema(
   {
     phone: { type: String, required: true, index: true },
     purpose: { type: String, enum: ["login", "register", "verify_phone"], required: true },
-    codeHash: { type: String, required: true, select: false },
+    /** local = code generated and hashed by Droovee; wakit = generated and verified by Wakit. */
+    provider: { type: String, enum: ["local", "wakit"], default: "local" },
+    /** Wakit message id used by POST /otp/verify. Absent for local codes. */
+    providerId: { type: String },
+    /** Local codes only. Wakit stores its own hash and never returns the code. */
+    codeHash: { type: String, select: false },
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
     consumedAt: { type: Date },

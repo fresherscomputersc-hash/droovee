@@ -5,6 +5,31 @@ import { getSession, setSession, Session } from "@/lib/session";
 import { api, setAccessToken } from "@/lib/api";
 import { CONTACT_ADDRESS, CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
 import { t, toggleLang, useLang } from "@/lib/i18n";
+import { PricingGateProvider, usePricingGate } from "@/components/PricingGate";
+
+function PricingNavButton({
+  className,
+  children,
+  onOpen,
+}: {
+  className: string;
+  children: ReactNode;
+  onOpen?: () => void;
+}) {
+  const { openGate } = usePricingGate();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onOpen?.();
+        openGate({ intent: "pricing" });
+      }}
+      className={className}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function PublicShell({ children }: { children: ReactNode }) {
   const [session, setS] = useState<Session | null>(null);
@@ -13,6 +38,9 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setS(getSession());
+    const onSessionChanged = () => setS(getSession());
+    window.addEventListener("droovee:session-changed", onSessionChanged);
+    return () => window.removeEventListener("droovee:session-changed", onSessionChanged);
   }, []);
 
   async function signOut() {
@@ -23,7 +51,8 @@ export function PublicShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 selection:bg-emerald-500 selection:text-white pb-24 md:pb-0">
+    <PricingGateProvider>
+      <div className="flex min-h-screen flex-col bg-slate-50 selection:bg-emerald-500 selection:text-white pb-24 md:pb-0">
       {/* HEADER / NAVBAR - Dark slate header matching udrivo layout with droovee emerald palette */}
       <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#0F172A]">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
@@ -43,9 +72,9 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link href="/how-it-works" className="text-xs font-semibold text-slate-300 transition hover:text-white">
               How It Works
             </Link>
-            <Link href="/pricing" className="text-xs font-semibold text-slate-300 transition hover:text-white">
+            <PricingNavButton className="text-xs font-semibold text-slate-300 transition hover:text-white">
               Pricing
-            </Link>
+            </PricingNavButton>
             {/* Language Pill */}
             <button
               onClick={toggleLang}
@@ -149,13 +178,12 @@ export function PublicShell({ children }: { children: ReactNode }) {
               >
                 How It Works
               </Link>
-              <Link
-                href="/pricing"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-slate-700 hover:text-emerald-600"
+              <PricingNavButton
+                onOpen={() => setMobileMenuOpen(false)}
+                className="text-left text-slate-700 hover:text-emerald-600"
               >
-                Fares & Pricing
-              </Link>
+                Fares &amp; Pricing
+              </PricingNavButton>
               <Link
                 href="/track"
                 onClick={() => setMobileMenuOpen(false)}
@@ -343,6 +371,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
-    </div>
+      </div>
+    </PricingGateProvider>
   );
 }

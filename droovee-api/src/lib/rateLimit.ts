@@ -44,7 +44,7 @@ export const loginLimiter = (): RateLimitRequestHandler =>
     return id || ipKeyGenerator(req.ip ?? "");
   });
 
-/** Coupon-guessing / estimate-scraping protection (estimate is unauthenticated). */
+/** Coupon-guessing / estimate-scraping protection. Runs before auth so anonymous attempts are throttled too. */
 export const estimateLimiter = (): RateLimitRequestHandler => make(WINDOW, 120);
 
 /** Public cancellation requests: throttle by booking ID to prevent spam. */

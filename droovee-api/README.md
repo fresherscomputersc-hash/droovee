@@ -24,7 +24,13 @@ Transactions need a MongoDB replica set. Atlas is one; a local `mongod` must be 
 | Booking status machine (9 confirmed statuses) | Built, unit-tested |
 | Driver overlap check with buffer; warn + override with reason | Built, integration-tested |
 | Assignment under concurrency (transaction + driver lock) | Built, race-tested |
-| Customer auth: register/login with OTP-verified mobile, or password | Built (OTP SMS provider not yet wired) |
+| Customer auth: register/login with OTP-verified mobile, or password | Built (WhatsApp OTP via Wakit; local debug fallback) |
+
+### WhatsApp OTP (Wakit)
+
+Production OTP uses [Wakit](https://wakit.in/docs): `POST /otp/send` generates and sends the code, and `POST /otp/verify` checks it by message id. Droovee stores only the Wakit id and expiry — never the code.
+
+Set `OTP_ENABLED=true` and `WAKIT_API_KEY=wk_live_...` in production. `wk_test_` keys simulate sends. For offline development, omit the key (or set `OTP_PROVIDER=local`) with `OTP_DEBUG=true` to use a local code; that path is rejected in production.
 | Staff auth and RBAC (owner, operations, support, finance) | Built, tested |
 | Disabled staff lose access on next request | Built, tested |
 | Customer booking create / list / view (own only), cancel request | Built, tested |
@@ -53,7 +59,7 @@ Values in `src/domain/settings.ts` marked `"unconfirmed"` are placeholders, not 
 
 - `POST auth/otp/request`, `POST auth/customer/register`, `POST auth/customer/login`, `POST auth/customer/login-otp`
 - `POST auth/staff/login`, `POST auth/refresh`, `POST auth/logout`, `GET auth/me`
-- `GET pricing/estimate`, `GET services`
+- `GET pricing/estimate`, `GET services` (customer or staff auth required)
 - `POST bookings`, `GET bookings/my`, `GET bookings/:id`, `POST bookings/:id/cancel`
 - `GET admin/dashboard`, `GET admin/bookings`, `GET admin/bookings/:id`
 - `PATCH admin/bookings/:id/assign`, `PATCH admin/bookings/:id/reassign`, `PATCH admin/bookings/:id/status`, `PATCH admin/bookings/:id/fare`
@@ -69,5 +75,6 @@ Errors use `{ code, message, fieldErrors?, details?, requestId }`. Assignment co
 - OTP: 5-minute expiry, attempt limit, resend cooldown.
 - Auth routes are rate-limited (30 requests / 15 min / IP). The limiter is in memory, so use a shared store (e.g. Redis) when running more than one instance.
 - Customers get `404` for bookings that aren't theirs, so IDs can't be enumerated.
+- Pricing is private: `GET /services` and `GET /pricing/estimate` require a signed-in customer or staff session.
 - Customers never see internal fields (contact log, override reasons, fare notes).
 - Production start checks for `JWT_ACCESS_SECRET`, `TOKEN_PEPPER` and `MONGODB_URI`.

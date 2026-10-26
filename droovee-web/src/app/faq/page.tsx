@@ -9,8 +9,8 @@ const FAQS = [
   { q: "Do I need an account to book?", a: "Yes. Sign in or create a free account in under a minute. Your trips, invoices and support history stay in one place." },
   { q: "How do I track my booking?", a: "Open Track booking and enter your booking ID or your mobile number. No password needed for tracking." },
   { q: "When do I pay?", a: "Choose Cash/UPI or Online when booking. The estimate is shown up front; the final fare is confirmed by our team." },
-  { q: "What is the late-night charge?", a: "Trips starting between 10 PM and 6 AM carry an additional ₹99 late-night charge." },
-  { q: "What is the launch offer?", a: "Your first hourly booking starts at ₹99 with coupon code LAUNCH99 (one use per customer)." },
+  { q: "What is the late-night charge?", a: "Trips starting between 10 PM and 6 AM may carry an additional late-night charge. Sign in to see the current rate." },
+  { q: "Do you have any offers?", a: "Any active offers are shown on your signed-in pricing page." },
 ];
 
 export default function FaqPage() {

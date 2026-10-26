@@ -44,7 +44,7 @@ export function Calculator() {
         startAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
         nights: String(nights),
       });
-      const r = await api<{ total: number }>(`/pricing/estimate?${q.toString()}`, { auth: false });
+      const r = await api<{ total: number }>(`/pricing/estimate?${q.toString()}`);
       setTotal(r.total);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not calculate.");

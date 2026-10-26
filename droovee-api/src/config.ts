@@ -60,9 +60,29 @@ export const config = {
   get otpResendCooldownSeconds(): number {
     return num("OTP_RESEND_COOLDOWN_SECONDS", 60);
   },
-  /** OTP is off for now (password login only). Set OTP_ENABLED=true to enable. */
+  /** OTP is off by default (password login only). Set OTP_ENABLED=true to enable. */
   get otpEnabled(): boolean {
     return process.env.OTP_ENABLED === "true";
+  },
+  /**
+   * Wakit is the production OTP provider. It generates and verifies the code,
+   * so Droovee never stores a plaintext or hashed code in that mode.
+   * Set OTP_PROVIDER=local only for offline development with OTP_DEBUG=true.
+   */
+  get otpProvider(): "local" | "wakit" {
+    const explicit = process.env.OTP_PROVIDER?.trim().toLowerCase();
+    if (explicit === "local" || explicit === "wakit") return explicit;
+    return this.wakitApiKey ? "wakit" : "local";
+  },
+  /** Wakit API key. wk_test_ keys simulate; wk_live_ keys send real WhatsApp messages. */
+  get wakitApiKey(): string {
+    return process.env.WAKIT_API_KEY?.trim() ?? "";
+  },
+  get wakitBaseUrl(): string {
+    return (process.env.WAKIT_BASE_URL?.trim() || "https://wakit.in/api/v1").replace(/\/+$/, "");
+  },
+  get wakitTimeoutMs(): number {
+    return num("WAKIT_TIMEOUT_MS", 10_000);
   },
   /** Outgoing email (booking confirmations, password resets). Unset = skip sending, booking still succeeds. */
   get smtpHost(): string {
@@ -99,6 +119,12 @@ export function assertRequiredConfig(): void {
   req("JWT_ACCESS_SECRET");
   req("TOKEN_PEPPER");
   if (config.env === "production") req("MONGODB_URI");
+  if (config.otpProvider === "wakit") req("WAKIT_API_KEY");
+  // A production deployment with OTP enabled must have a real delivery provider.
+  // Local debug codes are never a production fallback.
+  if (config.env === "production" && config.otpEnabled && config.otpProvider !== "wakit") {
+    throw new Error("WAKIT_API_KEY is required when OTP_ENABLED=true in production.");
+  }
 }
 
 /** @deprecated Use assertRequiredConfig (now enforced in all environments). */

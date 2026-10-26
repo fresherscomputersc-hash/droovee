@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PublicShell } from "@/components/PublicShell";
-import { api } from "@/lib/api";
+import { Calculator } from "@/components/Calculator";
+import { usePricingGate } from "@/components/PricingGate";
+import { api, ApiError } from "@/lib/api";
 import { money } from "@/lib/format";
 
 type ServiceTab = "in-city" | "outstation" | "monthly";
@@ -15,46 +17,64 @@ type Rates = {
   monthly?: boolean;
 };
 
+type Fees = {
+  additionalHourRate: number;
+  lateNightSurcharge: number;
+  lateNightWindow: { startHour: number; endHour: number };
+  nightHaltRate: number;
+};
+
 type ServiceRow = { type: string; rates: Rates };
 type Pkg = { id: string; name: string; fixedPrice: number; active?: boolean };
+type PricingData = { services: ServiceRow[]; packages: Pkg[]; fees?: Fees };
 
-/** Fallbacks mirror the active tariff; live values from /services always win. */
-const FALLBACK_RATES: Record<string, Rates> = {
-  hourly: { basePrice: 149, includedHours: 1, perHour: 129 },
-  half_day: { basePrice: 599, includedHours: 4, perHour: 129 },
-  full_day: { basePrice: 1099, includedHours: 8, perHour: 129 },
-  monthly_office: { basePrice: 6999, includedHours: 0, perHour: 0, monthly: true },
-  outstation_one_way: { basePrice: 0, includedHours: 0, perHour: 199 },
-  outstation_round_trip: { basePrice: 0, includedHours: 0, perHour: 169, nightHalt: 399 },
-  airport_pickup_drop: { basePrice: 0, includedHours: 0, perHour: 199 },
-};
+/** Pricing is private, so there are deliberately no hard-coded rate fallbacks. */
+function showMoney(value: number | null | undefined) {
+  return value == null ? "—" : money(value);
+}
 
-const FALLBACK_PACKAGES: Record<string, number> = {
-  "puri-day": 1690,
-  "konark-day": 1690,
-  "cuttack-drop": 597,
-  "airport-drop": 398,
-  "wedding-day": 1099,
-  "hospital-visit": 599,
-};
-
-const LATE_NIGHT_SURCHARGE = 149;
-
-export default function PricingPage() {
+function PricingContent() {
   const [activeTab, setActiveTab] = useState<ServiceTab>("in-city");
-  const [data, setData] = useState<{ services: ServiceRow[]; packages: Pkg[] } | null>(null);
+  const [data, setData] = useState<PricingData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { isCustomer, ready, openGate } = usePricingGate();
+  const autoOpened = useRef(false);
+  const locked = !ready || !isCustomer;
 
   useEffect(() => {
-    api<{ services: ServiceRow[]; packages: Pkg[] }>("/services", { auth: false })
-      .then((r) => setData({ services: r.services ?? [], packages: r.packages ?? [] }))
-      .catch(() => setData(null));
-  }, []);
+    if (!ready || !isCustomer) {
+      setData(null);
+      setLoadError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadError(null);
+    api<PricingData>("/services")
+      .then((r) => {
+        if (!cancelled) setData({ services: r.services ?? [], packages: r.packages ?? [], fees: r.fees });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setData(null);
+          setLoadError(err instanceof ApiError ? err.message : "Could not load live rates.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, isCustomer]);
 
-  const rate = (type: string): Rates =>
-    data?.services.find((s) => s.type === type)?.rates ?? FALLBACK_RATES[type];
+  useEffect(() => {
+    if (!ready || isCustomer || autoOpened.current) return;
+    autoOpened.current = true;
+    openGate({ intent: "pricing" });
+  }, [ready, isCustomer, openGate]);
 
-  const pkg = (id: string): number =>
-    data?.packages.find((p) => p.id === id && p.active !== false)?.fixedPrice ?? FALLBACK_PACKAGES[id];
+  const rate = (type: string): Rates | undefined =>
+    data?.services.find((s) => s.type === type)?.rates;
+
+  const pkg = (id: string): number | undefined =>
+    data?.packages.find((p) => p.id === id && p.active !== false)?.fixedPrice;
 
   const hourly = rate("hourly");
   const half = rate("half_day");
@@ -62,7 +82,7 @@ export default function PricingPage() {
   const monthly = rate("monthly_office");
   const oneWay = rate("outstation_one_way");
   const roundTrip = rate("outstation_round_trip");
-  const nightHalt = roundTrip.nightHalt ?? 399;
+  const nightHalt = roundTrip?.nightHalt ?? data?.fees?.nightHaltRate ?? null;
 
   const tabClass = (tab: ServiceTab) =>
     `rounded-xl px-5 py-2.5 text-xs font-bold transition sm:text-sm ${
@@ -72,7 +92,26 @@ export default function PricingPage() {
     }`;
 
   return (
-    <PublicShell>
+    <>
+      {locked && (
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-6">
+          <div className="mx-auto max-w-xl rounded-2xl border border-emerald-200 bg-white p-5 text-center shadow-sm">
+            <p className="text-sm font-bold text-slate-900">Pricing is private to signed-in customers</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Sign in with your mobile number to view fares and calculate an estimate.
+            </p>
+            <button
+              type="button"
+              onClick={() => openGate({ intent: "pricing" })}
+              className="mt-3 rounded-full bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+            >
+              Sign in to view pricing
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={locked ? "pointer-events-none select-none blur-sm" : ""} aria-hidden={locked} inert={locked}>
       {/* HEADER BANNER */}
       <section className="bg-slate-900 py-12 text-white sm:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
@@ -91,8 +130,8 @@ export default function PricingPage() {
           {/* Value highlights */}
           <div className="mt-8 grid grid-cols-2 gap-3 border-t border-slate-800 pt-6 sm:grid-cols-4">
             <div className="rounded-xl bg-slate-800/40 p-3">
-              <p className="text-xs text-slate-400">Launch Promo</p>
-              <p className="text-base font-bold text-emerald-400">₹99 1st Hour</p>
+              <p className="text-xs text-slate-400">Pricing Model</p>
+              <p className="text-base font-bold text-emerald-400">Transparent slabs</p>
             </div>
             <div className="rounded-xl bg-slate-800/40 p-3">
               <p className="text-xs text-slate-400">Surge Multiplier</p>
@@ -125,6 +164,19 @@ export default function PricingPage() {
           </button>
         </div>
 
+        {!data && (
+          <div
+            role={loadError ? "alert" : "status"}
+            className={`mt-6 rounded-xl border px-4 py-3 text-sm ${
+              loadError
+                ? "border-rose-200 bg-rose-50 text-rose-700"
+                : "border-slate-200 bg-slate-50 text-slate-500"
+            }`}
+          >
+            {loadError ?? "Loading live rates…"}
+          </div>
+        )}
+
         {/* TAB 1: IN-CITY PRICING */}
         {activeTab === "in-city" && (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -134,11 +186,11 @@ export default function PricingPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Short Errand</span>
                 <h3 className="mt-2 text-xl font-bold text-slate-900">First Hour</h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-slate-900">{money(hourly.basePrice)}</span>
+                  <span className="text-3xl font-extrabold text-slate-900">{showMoney(hourly?.basePrice)}</span>
                   <span className="text-xs text-slate-500">/ first hour</span>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Extra hours at {money(hourly.perHour)}/hr. Ideal for doctor visits or grocery shopping.
+                  Extra hours at {showMoney(hourly?.perHour)}/hr. Ideal for doctor visits or grocery shopping.
                 </p>
                 <ul className="mt-5 space-y-2 text-xs text-slate-600">
                   <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> Doorstep arrival in 30 mins</li>
@@ -160,15 +212,15 @@ export default function PricingPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Half-Day</span>
                 <h3 className="mt-2 text-xl font-bold text-slate-900">4 Hours Slab</h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-slate-900">{money(half.basePrice)}</span>
+                  <span className="text-3xl font-extrabold text-slate-900">{showMoney(half?.basePrice)}</span>
                   <span className="text-xs text-slate-500">/ package</span>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Extra hours at {money(half.perHour)}/hr. Perfect for shopping, family dinners, or meetings.
+                  Extra hours at {showMoney(half?.perHour)}/hr. Perfect for shopping, family dinners, or meetings.
                 </p>
                 <ul className="mt-5 space-y-2 text-xs text-slate-600">
                   <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> Unlimited stops within city</li>
-                  <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> Code LAUNCH99 applies</li>
+                  <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> No surge pricing</li>
                   <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> Uniformed chauffeur</li>
                 </ul>
               </div>
@@ -183,11 +235,11 @@ export default function PricingPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Full-Day</span>
                 <h3 className="mt-2 text-xl font-bold text-slate-900">8 Hours Slab</h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-slate-900">{money(full.basePrice)}</span>
+                  <span className="text-3xl font-extrabold text-slate-900">{showMoney(full?.basePrice)}</span>
                   <span className="text-xs text-slate-500">/ package</span>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Full-day chauffeur dedicated to your car. Extra hours at {money(full.perHour)}/hr.
+                  Full-day chauffeur dedicated to your car. Extra hours at {showMoney(full?.perHour)}/hr.
                 </p>
                 <ul className="mt-5 space-y-2 text-xs text-slate-600">
                   <li className="flex items-center gap-1.5"><span className="font-bold text-emerald-600">✓</span> Multi-location itinerary</li>
@@ -209,7 +261,7 @@ export default function PricingPage() {
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">One-Way Highway</span>
               <h3 className="mt-2 text-xl font-bold text-slate-900">Bhubaneswar to Cuttack</h3>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-slate-900">{money(pkg("cuttack-drop"))}</span>
+                <span className="text-3xl font-extrabold text-slate-900">{showMoney(pkg("cuttack-drop"))}</span>
                 <span className="text-xs text-slate-500">/ drop only</span>
               </div>
               <p className="mt-2 text-xs text-slate-500">Driver return fare is included in quote. Customer only provides tolls &amp; fuel.</p>
@@ -222,7 +274,7 @@ export default function PricingPage() {
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Popular Day Trip</span>
               <h3 className="mt-2 text-xl font-bold text-slate-900">Puri / Konark Round-Trip</h3>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-slate-900">{money(pkg("puri-day"))}</span>
+                <span className="text-3xl font-extrabold text-slate-900">{showMoney(pkg("puri-day"))}</span>
                 <span className="text-xs text-slate-500">/ up to 10 hours</span>
               </div>
               <p className="mt-2 text-xs text-slate-500">Temple visits, beach side, and return same day. Highway defensive drivers.</p>
@@ -235,11 +287,11 @@ export default function PricingPage() {
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Outstation Rates</span>
               <h3 className="mt-2 text-xl font-bold text-slate-900">One-Way &amp; Round-Trip</h3>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-slate-900">{money(oneWay.perHour)}</span>
+                <span className="text-3xl font-extrabold text-slate-900">{showMoney(oneWay?.perHour)}</span>
                 <span className="text-xs text-slate-500">/ hour one-way</span>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                Round-trip {money(roundTrip.perHour)}/hr · night halt {money(nightHalt)}/night.
+                Round-trip {showMoney(roundTrip?.perHour)}/hr · night halt {showMoney(nightHalt)}/night.
               </p>
               <Link href="/book?service=outstation_one_way" className="mt-6 block rounded-xl bg-slate-900 py-2.5 text-center text-xs font-bold text-white">
                 Book Outstation
@@ -262,7 +314,7 @@ export default function PricingPage() {
             <div className="mt-8 max-w-md rounded-2xl border border-slate-100 bg-slate-50 p-6">
               <h4 className="font-bold text-slate-900">Monthly Office Package</h4>
               <p className="mt-1 text-2xl font-extrabold text-slate-900">
-                from {money(monthly.basePrice)} <span className="text-xs font-normal text-slate-500">/ month</span>
+                from {showMoney(monthly?.basePrice)} <span className="text-xs font-normal text-slate-500">/ month</span>
               </p>
               <p className="mt-1 text-xs font-semibold text-emerald-700">Customizable to your shift and route.</p>
               <ul className="mt-4 space-y-1.5 text-xs text-slate-600">
@@ -315,12 +367,12 @@ export default function PricingPage() {
                 </tr>
                 <tr>
                   <td className="px-6 py-3.5 font-medium text-slate-900">Night Driving Charge</td>
-                  <td className="px-6 py-3.5">{money(LATE_NIGHT_SURCHARGE)} flat (if ride touches 10:00 PM – 6:00 AM)</td>
+                  <td className="px-6 py-3.5">{showMoney(data?.fees?.lateNightSurcharge)} flat (if ride touches 10:00 PM – 6:00 AM)</td>
                   <td className="px-6 py-3.5">Added to final bill</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-3.5 font-medium text-slate-900">Outstation Night Halt</td>
-                  <td className="px-6 py-3.5">{money(nightHalt)} per night (driver food &amp; lodging allowance)</td>
+                  <td className="px-6 py-3.5">{showMoney(nightHalt)} per night (driver food &amp; lodging allowance)</td>
                   <td className="px-6 py-3.5">Added if not provided</td>
                 </tr>
                 <tr>
@@ -338,12 +390,17 @@ export default function PricingPage() {
           </div>
         </div>
 
+        {/* ESTIMATE CALCULATOR */}
+        <div id="estimate" className="mt-12 scroll-mt-24">
+          <Calculator />
+        </div>
+
         {/* BOTTOM BOOKING CTA */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 p-8 text-white sm:flex-row">
           <div>
             <h4 className="text-xl font-extrabold">Ready to book your driver?</h4>
             <p className="mt-1 text-xs text-emerald-100 sm:text-sm">
-              Use code <span className="font-mono font-bold text-white underline">LAUNCH99</span> to get your first hour at just ₹99.
+              Transparent rates with no advance payment. Pay after the trip.
             </p>
           </div>
           <Link
@@ -354,6 +411,15 @@ export default function PricingPage() {
           </Link>
         </div>
       </section>
+      </div>
+    </>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <PublicShell>
+      <PricingContent />
     </PublicShell>
   );
 }

@@ -31,8 +31,8 @@ MongoDB (Atlas or Render-hosted, replica set) — every public API request queri
 |---|---|---|---|---|---|---|
 | 1 | `/` | GET | none | none (Cloudflare bot rules) | Yes — primary frontend scenario | none (cached) |
 | 2 | `/api/v1/health` | GET | none | **none** (registered before global limiter) | Yes — 10% share | none (DB ping) |
-| 3 | `/api/v1/services` | GET | none | global 1000/15min | Yes — 45% share | none (reads settings) |
-| 4 | `/api/v1/pricing/estimate` | GET | none | estimate 120/15min | Yes — 25% share | none (computes fare) |
+| 3 | `/api/v1/services` | GET | customer/staff Bearer | global 1000/15min | Yes — 45% share (pass `ACCESS_TOKEN`) | none (reads settings) |
+| 4 | `/api/v1/pricing/estimate` | GET | customer/staff Bearer | estimate 120/15min | Yes — 25% share (pass `ACCESS_TOKEN`) | none (computes fare) |
 | 5 | `/api/v1/ratings/recent` | GET | none | global | Yes — 20% share | none |
 | 6 | `/api/v1/bookings/track` | GET | none | estimate 120/15min | Yes — synthetic numbers only, expected 404 | none |
 | 7 | `/api/v1/bookings/my`, `/admin/*`, `/driver/j/:token/*` | GET/POST | Bearer/session | layered | **No** — requires credentials; safe validation only | n/a |

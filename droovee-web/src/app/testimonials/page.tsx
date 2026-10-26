@@ -73,7 +73,7 @@ const TESTIMONIALS: Review[] = [
     rating: 4,
     date: "20 Sep 2026",
     comment:
-      "Much cheaper than hiring a cab when you already own a car. First hour was just ₹99 with LAUNCH99. Highly recommended for hospital and market trips.",
+      "Much cheaper than hiring a cab when you already own a car. The first-hour pricing was clear and affordable. Highly recommended for hospital and market trips.",
     verified: true,
   },
   {

@@ -12,6 +12,7 @@ import { ratingsRouter } from "./routes/ratings";
 import { errorHandler, AppError } from "./lib/errors";
 import { getActiveSettings } from "./services/settings";
 import { globalLimiter, authLimiter, adminLimiter } from "./lib/rateLimit";
+import { authenticate } from "./middleware/auth";
 
 export function createApp() {
   const app = express();
@@ -52,15 +53,22 @@ export function createApp() {
 
   app.use("/api/v1/pricing", pricingRouter);
 
-  app.get("/api/v1/services", async (_req, res) => {
+  // Pricing is private to signed-in customers and staff. The catalogue still
+  // lives here so the booking, pricing and receipt screens share one source.
+  app.get("/api/v1/services", authenticate, async (_req, res) => {
     const { version, settings } = await getActiveSettings();
-    // Public, read-mostly catalogue. A short CDN/browser cache keeps the
-    // landing page warm without making settings changes invisible.
-    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    // Authenticated responses must never be cached by a shared CDN.
+    res.setHeader("Cache-Control", "private, no-store");
     res.json({
       settingsVersion: version,
       services: SERVICE_TYPES.map((t) => ({ type: t, rates: settings.pricing.services[t] })),
       packages: (settings.pricing.packages ?? []).filter((p) => p.active),
+      fees: {
+        additionalHourRate: settings.pricing.additionalHourRate.value,
+        lateNightSurcharge: settings.pricing.lateNightSurcharge.value,
+        lateNightWindow: settings.pricing.lateNightWindow.value,
+        nightHaltRate: settings.pricing.nightHaltRate.value,
+      },
       invoice: settings.pricing.invoice ?? { gstin: { value: "" }, gstRate: { value: 18 } },
     });
   });

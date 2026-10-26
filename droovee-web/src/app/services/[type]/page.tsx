@@ -6,12 +6,12 @@ import { SERVICE_LABEL } from "@/lib/format";
 const CONTENT: Record<string, { title: string; body: string[]; cta: string }> = {
   hourly: {
     title: "Hourly driver on hire in Bhubaneswar",
-    body: ["Need a driver for a few hours in Bhubaneswar? Our driver drives your own car — shopping, errands, appointments.", "Pay for the first hour, then per extra hour. Late-night trips (10 PM–6 AM) add ₹99."],
+    body: ["Need a driver for a few hours in Bhubaneswar? Our driver drives your own car — shopping, errands, appointments.", "Pay for the first hour, then per extra hour. Late-night trips (10 PM–6 AM) may carry an additional charge."],
     cta: "Book an hourly driver",
   },
   half_day: {
     title: "Half-day driver in Bhubaneswar (4 hours)",
-    body: ["A driver for half your day — office commutes, school runs, hospital visits.", "Fixed 4-hour package. First hour at ₹99 with LAUNCH99 for new customers."],
+    body: ["A driver for half your day — office commutes, school runs, hospital visits.", "Fixed 4-hour package with transparent, sign-in-only pricing."],
     cta: "Book a half-day driver",
   },
   full_day: {
@@ -68,7 +68,7 @@ export default async function ServicePage({ params }: { params: Promise<{ type: 
           <h2 className="font-semibold">Why Droovee</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
             <li>Police-verified, trained drivers</li>
-            <li>Estimate up front — no hidden charges</li>
+            <li>Live fare estimate after sign-in — no hidden charges</li>
             <li>Live tracking with your booking ID</li>
             <li>Damage while our driver drives is the driver's responsibility</li>
           </ul>

@@ -9,7 +9,7 @@ Safe, repeatable procedures to validate the findings in `SECURITY_AUDIT.md` and 
 | Environment | Staging/local preferred. Local: `droovee-api` with `mongodb-memory-server` (used by `npm test`) or a local replica set. |
 | Accounts | Two synthetic customer accounts (A and B) with distinct phone numbers you control; one staff test account (support role) and one owner account. Never reuse real customer credentials. |
 | Data | Synthetic bookings only (`DRV-T*`-style), future dates, fake addresses. |
-| OTP | `OTP_ENABLED=true` only in local/staging with `OTP_DEBUG=true` (never production — `otp.ts:50-54`). |
+| OTP | Production: `OTP_ENABLED=true` plus a `WAKIT_API_KEY` (Wakit sends and verifies the WhatsApp code). Local debug: `OTP_PROVIDER=local` with `OTP_DEBUG=true`; never in production. |
 | Email | Leave SMTP unconfigured in tests → reset links surface in the local response (`auth.ts:185-187`, dev-only) instead of sending mail. |
 | Cleanup | `test/*.test.ts` uses an in-memory DB (auto-wiped). For manual runs: delete created customers/bookings by their synthetic phone numbers/booking numbers. |
 

@@ -177,17 +177,24 @@ after(async () => {
 });
 
 test("estimate: coupon reprices the first hour to ₹99 and is labelled as an estimate", async () => {
-  const r = await call("GET", `/api/v1/pricing/estimate?serviceType=hourly&durationHours=1&startAt=${encodeURIComponent(SLOT_A.start)}&couponCode=FIRSTHOUR99`);
+  const token = await registerCustomer("9826000001", "Pricing Viewer");
+  const r = await call(
+    "GET",
+    `/api/v1/pricing/estimate?serviceType=hourly&durationHours=1&startAt=${encodeURIComponent(SLOT_A.start)}&couponCode=FIRSTHOUR99`,
+    token,
+  );
   assert.equal(r.status, 200);
   assert.equal(r.body.total, 99);
   assert.equal(r.body.isEstimate, true);
 });
 
 test("coupons: non-hourly service, below-minimum fare, and per-customer reuse are rejected", async () => {
+  const token = await registerCustomer("9826000002", "Coupon Viewer");
   // first_hour_price never applies outside hourly — even when eligibleServices is open.
   const wrongService = await call(
     "GET",
     `/api/v1/pricing/estimate?serviceType=half_day&durationHours=4&startAt=${encodeURIComponent(SLOT_A.start)}&couponCode=FIRSTHOUR99`,
+    token,
   );
   assert.equal(wrongService.status, 400);
   assert.equal(wrongService.body.fieldErrors?.couponCode, "ineligible");
@@ -196,17 +203,35 @@ test("coupons: non-hourly service, below-minimum fare, and per-customer reuse ar
   const belowMin = await call(
     "GET",
     `/api/v1/pricing/estimate?serviceType=hourly&durationHours=1&startAt=${encodeURIComponent(SLOT_A.start)}&couponCode=MIN500`,
+    token,
   );
   assert.equal(belowMin.status, 400);
   assert.equal(belowMin.body.fieldErrors?.couponCode, "below_minimum");
 
   // Once-per-customer: second booking with the same coupon fails.
-  const token = await registerCustomer("9826666666", "Coupon Reuser");
-  const first = await call("POST", "/api/v1/bookings", token, bookingBody(SLOT_A, { couponCode: "FIRSTHOUR99" }));
+  const reuserToken = await registerCustomer("9826666666", "Coupon Reuser");
+  const first = await call("POST", "/api/v1/bookings", reuserToken, bookingBody(SLOT_A, { couponCode: "FIRSTHOUR99" }));
   assert.equal(first.status, 201, JSON.stringify(first.body));
-  const second = await call("POST", "/api/v1/bookings", token, bookingBody(SLOT_C, { couponCode: "FIRSTHOUR99" }));
+  const second = await call("POST", "/api/v1/bookings", reuserToken, bookingBody(SLOT_C, { couponCode: "FIRSTHOUR99" }));
   assert.equal(second.status, 400);
   assert.equal(second.body.fieldErrors?.couponCode, "already_used");
+});
+
+test("pricing catalogue and estimates require authentication", async () => {
+  const estimatePath = `/api/v1/pricing/estimate?serviceType=hourly&durationHours=2&startAt=${encodeURIComponent(SLOT_A.start)}`;
+  const anonymousEstimate = await call("GET", estimatePath);
+  assert.equal(anonymousEstimate.status, 401);
+  const anonymousServices = await call("GET", "/api/v1/services");
+  assert.equal(anonymousServices.status, 401);
+
+  const token = await registerCustomer("9826000003", "Pricing Viewer 2");
+  const services = await call("GET", "/api/v1/services", token);
+  assert.equal(services.status, 200);
+  assert.equal(services.body.services.length, 7);
+  assert.equal(typeof services.body.fees?.lateNightSurcharge, "number");
+  const estimate = await call("GET", estimatePath, token);
+  assert.equal(estimate.status, 200);
+  assert.equal(estimate.body.total, 278);
 });
 
 test("OTP endpoints are off while OTP sign-in is disabled", async () => {

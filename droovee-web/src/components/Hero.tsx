@@ -1,108 +1,111 @@
 "use client";
+
 import Link from "next/link";
-import { LinkButton } from "@/components/ui";
-import { t, useLang } from "@/lib/i18n";
+import { usePricingGate } from "@/components/PricingGate";
 
-import { useEffect, useState } from "react";
-import { getSession, Session } from "@/lib/session";
-
+/**
+ * Landing hero: dark emerald gradient with a slow CSS-only aurora, staggered
+ * entrance, and no public pricing. Pricing is opened through the sign-in gate.
+ */
 export function Hero() {
-  const lang = useLang();
-  const [session, setSession] = useState<Session | null>(null);
-
-  useEffect(() => {
-    setSession(getSession());
-  }, []);
-
-  const isCustomer = session?.kind === "customer";
+  const { openGate } = usePricingGate();
 
   return (
-    <div className="flex flex-col items-start text-left">
-      {/* Editorial headline tag */}
-      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
-        <span>Bhubaneswar</span>
-        <span className="text-emerald-600">•</span>
-        <span>24×7 Professional Chauffeurs</span>
+    <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 py-20 text-white md:py-28">
+      <style>{`
+        @keyframes hero-aurora-a {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .55; }
+          50% { transform: translate3d(36px, -28px, 0) scale(1.16); opacity: .8; }
+        }
+        @keyframes hero-aurora-b {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .4; }
+          50% { transform: translate3d(-30px, 22px, 0) scale(1.12); opacity: .65; }
+        }
+        @keyframes hero-aurora-c {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .35; }
+          50% { transform: translate3d(24px, 18px, 0) scale(1.1); opacity: .55; }
+        }
+        @keyframes hero-rise {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .hero-aurora-a { animation: hero-aurora-a 16s ease-in-out infinite; }
+        .hero-aurora-b { animation: hero-aurora-b 20s ease-in-out infinite; }
+        .hero-aurora-c { animation: hero-aurora-c 24s ease-in-out infinite; }
+        .hero-rise { opacity: 0; animation: hero-rise .45s cubic-bezier(.22, 1, .36, 1) forwards; }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-aurora-a, .hero-aurora-b, .hero-aurora-c, .hero-rise {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="hero-aurora-a absolute -left-28 top-[-18%] h-[540px] w-[540px] rounded-full bg-emerald-500/25 blur-[120px]" />
+        <div className="hero-aurora-b absolute right-[-12%] top-[8%] h-[440px] w-[440px] rounded-full bg-teal-400/20 blur-[110px]" />
+        <div className="hero-aurora-c absolute bottom-[-32%] left-1/3 h-[480px] w-[480px] rounded-full bg-cyan-500/10 blur-[130px]" />
       </div>
 
-      {/* Main Hero Headline matching udrivo typography */}
-      <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl leading-[1.1]">
-        Hire a Verified Driver in Bhubaneswar for Your Car
-      </h1>
-
-      {/* High-contrast subtitle */}
-      <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-        Need an acting driver near you? Hire a professional, police-verified driver for your own car at transparent hourly rates. Experienced, punctual, and safe on every trip.
-      </p>
-
-      {/* Trust Badges matching udrivo pill format */}
-      <div className="mt-6 flex flex-wrap gap-2.5">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 13.4-3.5-3.5 1.4-1.4 2.1 2.1 4.5-4.5 1.4 1.4-5.9 5.9z" />
-          </svg>
-          100% Police-Verified Drivers
+      <div className="relative mx-auto max-w-4xl px-4 text-center">
+        <div className="hero-rise inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+          <span>Bhubaneswar</span>
+          <span className="text-emerald-600">•</span>
+          <span>Professional Chauffeurs</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 13.4-3.5-3.5 1.4-1.4 2.1 2.1 4.5-4.5 1.4 1.4-5.9 5.9z" />
-          </svg>
-          Vehicle Damage Accountable
-        </div>
-      </div>
 
-      {/* Customer Rating with 5 Gold Stars */}
-      <div className="mt-4 flex items-center gap-2">
-        <div className="flex text-amber-400">
-          {"★★★★★"}
-        </div>
-        <span className="text-sm font-bold text-white">4.9/5</span>
-        <span className="text-xs text-slate-400">from 1,000+ car owners</span>
-      </div>
-
-      {/* Action Buttons matching udrivo pill shape */}
-      <div className="mt-7 flex flex-wrap items-center gap-3">
-        <Link
-          href="/book"
-          className="rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 hover:scale-105"
+        <h1
+          className="hero-rise mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl"
+          style={{ animationDelay: "70ms" }}
         >
-          Book a Driver Now →
-        </Link>
-        <Link
-          href={isCustomer ? "/bookings" : "/track"}
-          className="rounded-full border border-slate-700 bg-slate-800/90 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          Your Car, Our <span className="text-emerald-400">Professional Driver</span>
+        </h1>
+
+        <p
+          className="hero-rise mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg"
+          style={{ animationDelay: "140ms" }}
         >
-          {isCustomer ? "My Trips" : "Track Driver"}
-        </Link>
-      </div>
+          Book experienced drivers for your own car. Safe, reliable, and convenient transportation whenever you need it.
+        </p>
 
-      {!isCustomer && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-          <span>Already have an account?</span>
-          <Link href="/login" className="font-semibold text-emerald-400 hover:underline">
-            Sign In
+        <div
+          className="hero-rise mt-8 flex flex-wrap items-center justify-center gap-3"
+          style={{ animationDelay: "210ms" }}
+        >
+          <Link
+            href="/book"
+            className="rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:scale-105 hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          >
+            Book Your Driver Now →
           </Link>
-          <span>•</span>
-          <Link href="/register" className="font-semibold text-slate-300 hover:text-white hover:underline">
-            Register as Member
-          </Link>
+          <button
+            type="button"
+            onClick={() => openGate({ intent: "pricing" })}
+            className="rounded-full border border-slate-700 bg-slate-800/90 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          >
+            See Pricing
+          </button>
         </div>
-      )}
 
-      {/* Voucher card for LAUNCH99 */}
-      <div className="mt-7 w-full max-w-md rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200 backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <span className="font-bold text-amber-300">New User Benefit</span>
-            <p className="text-slate-300">
-              First hour at only <span className="font-bold text-white">₹99</span> with coupon
-            </p>
+        <div
+          className="hero-rise mx-auto mt-12 grid max-w-2xl grid-cols-1 divide-y divide-white/10 border-t border-white/10 pt-8 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+          style={{ animationDelay: "280ms" }}
+        >
+          <div className="px-4 py-4 sm:py-0">
+            <p className="text-3xl font-extrabold text-white">500+</p>
+            <p className="mt-1 text-xs font-medium text-slate-400">Verified Drivers</p>
           </div>
-          <span className="rounded-lg border border-amber-400/40 bg-amber-400/20 px-2.5 py-1 font-mono font-bold text-amber-300 tracking-wider">
-            LAUNCH99
-          </span>
+          <div className="px-4 py-4 sm:py-0">
+            <p className="text-3xl font-extrabold text-white">10k+</p>
+            <p className="mt-1 text-xs font-medium text-slate-400">Happy Customers</p>
+          </div>
+          <div className="px-4 py-4 sm:py-0">
+            <p className="text-3xl font-extrabold text-white">4.9/5</p>
+            <p className="mt-1 text-xs font-medium text-slate-400">from 1,000+ trips</p>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

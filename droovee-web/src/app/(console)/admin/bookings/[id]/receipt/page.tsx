@@ -17,7 +17,7 @@ export default function ReceiptPage() {
     Promise.all([
       api(`/admin/bookings/${params.id}`),
       api<{ items: any[] }>(`/admin/bookings/${params.id}/payments`).catch(() => ({ items: [] })),
-      api<{ invoice?: any }>("/services", { auth: false }).catch(() => ({ invoice: undefined })),
+      api<{ invoice?: any }>("/services").catch(() => ({ invoice: undefined })),
     ])
       .then(([bk, pay, svc]) => {
         setB(bk);
