@@ -13,7 +13,7 @@ export default function TermsPage() {
             <li>Damage to your vehicle while our driver is driving is the driver's responsibility. Report it to us immediately.</li>
             <li>Traffic fines caused by the driver's fault are the driver's responsibility; fines caused by the vehicle (papers, permits) are yours.</li>
             <li>The fare estimate is not final. Our team confirms the final fare before your driver is assigned.</li>
-            <li>Late-night trips (10 PM–6 AM) carry an additional ₹99 charge.</li>
+            <li>Late-night trips (10 PM–6 AM) may carry an additional charge.</li>
             <li>Bookings are confirmed by our team, not instantly — we check driver availability first.</li>
           </ul>
         </Card>

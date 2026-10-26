@@ -6,6 +6,7 @@ import { validateCoupon, assertCouponMinAmount } from "../services/coupons";
 import { validateQuery } from "../lib/validate";
 import { estimateLimiter } from "../lib/rateLimit";
 import { AppError } from "../lib/errors";
+import { authenticate } from "../middleware/auth";
 
 export const pricingRouter = Router();
 
@@ -27,12 +28,16 @@ const estimateQuery = z.object({
   couponCode: z.string().trim().max(40).optional(),
 });
 
-/** Public estimate. Labelled as an estimate; final fare may change (FR-PAY-02). */
-pricingRouter.get("/estimate", estimateLimiter(), validateQuery(estimateQuery), async (req, res) => {
+/**
+ * Authenticated estimate. Labelled as an estimate; final fare may change
+ * (FR-PAY-02). Pricing is private, so this is only available to signed-in
+ * customers and staff.
+ */
+pricingRouter.get("/estimate", estimateLimiter(), authenticate, validateQuery(estimateQuery), async (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof estimateQuery> }).validatedQuery;
   const { version, settings } = await getActiveSettings();
-  // NOTE: the estimate is unauthenticated, so the per-customer redemption cap
-  // cannot be checked here — booking creation enforces it authoritatively.
+  // The per-customer redemption cap is still enforced authoritatively when the
+  // booking is created; this endpoint only previews the fare.
   const coupon = q.couponCode ? await validateCoupon(q.couponCode, q.serviceType) : undefined;
   try {
     const fareInput = {

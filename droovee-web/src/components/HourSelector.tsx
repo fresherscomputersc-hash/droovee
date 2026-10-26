@@ -25,9 +25,9 @@ export function HourSelector({ value, onChange, serviceType, error }: HourSelect
 
   const rateHint =
     serviceType === "airport_pickup_drop"
-      ? "₹199/hr transparent pricing (airport / station / bus stop)"
+      ? "Transparent hourly pricing for airport, station and bus-stop trips."
       : serviceType === "hourly"
-      ? "1st hour ₹149 · Each additional hour ₹129/hr"
+      ? "First hour plus additional hours, billed per hour."
       : "Hourly driver dispatch";
 
   return (

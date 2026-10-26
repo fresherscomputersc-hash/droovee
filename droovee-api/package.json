@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
     "db:indexes": "npm run build && node dist/src/scripts/sync-indexes.js",
-    "test": "npm run build && node --test dist/test/domain.test.js dist/test/lib.test.js dist/test/integration.test.js"
+    "test": "npm run build && node --test dist/test/domain.test.js dist/test/lib.test.js dist/test/wakit.test.js dist/test/integration.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

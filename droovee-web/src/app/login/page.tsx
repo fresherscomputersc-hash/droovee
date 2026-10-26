@@ -54,8 +54,8 @@ function LoginForm() {
         auth: false,
       });
       setOtpSent(true);
-      if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — real SMS in production).`);
-      else setNotice("Code sent by SMS. Enter it below.");
+      if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — WhatsApp in production).`);
+      else setNotice("Code sent on WhatsApp. Enter it below.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send code.");
     }

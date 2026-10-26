@@ -40,8 +40,8 @@ export default function RegisterPage() {
       });
       setOtpSent(true);
       setOtpEnabled(true);
-      if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — real SMS in production).`);
-      else setNotice("Code sent by SMS. Enter it below.");
+      if (r.debugCode) setNotice(`Your demo code is ${r.debugCode} (dev only — WhatsApp in production).`);
+      else setNotice("Code sent on WhatsApp. Enter it below.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setOtpEnabled(false); // server has OTP off — register without code

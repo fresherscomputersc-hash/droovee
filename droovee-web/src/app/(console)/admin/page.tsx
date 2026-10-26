@@ -28,9 +28,10 @@ export default function DashboardPage() {
     api<{ items: any[] }>("/admin/bookings?openOnly=true&limit=8")
       .then((r) => setBookings(r.items))
       .catch(() => setBookings([]));
-    refreshAlerts();
+    // Defer non-critical alerts so dashboard paints first; stagger avoids 3 simultaneous heavy fetches.
+    const a = setTimeout(() => refreshAlerts(), 800);
     const t = setInterval(refreshAlerts, 30000);
-    return () => clearInterval(t);
+    return () => { clearTimeout(a); clearInterval(t); };
   }, [refreshAlerts]);
 
   const upcoming = bookings ?? [];

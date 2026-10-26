@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/PublicShell";
-import { PriceList } from "@/components/PriceList";
 import { Hero } from "@/components/Hero";
+import { PricingCta } from "@/components/PricingCta";
 import { CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
 
 const TRUST = [
@@ -27,7 +27,7 @@ const SERVICES = [
     title: "Hourly & city",
     desc: "Shopping, meetings, hospital visits and daily errands across Bhubaneswar.",
     href: "/services/hourly",
-    tag: "From ₹149/hr",
+    tag: "City & errands",
     icon: (
       <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.6 3.2 1.9-.9 1.5L11 13.5V7h2v5.6z" />
     ),
@@ -36,7 +36,7 @@ const SERVICES = [
     title: "Outstation",
     desc: "One-way or round-trip drivers to Puri, Cuttack, Konark and beyond.",
     href: "/services/outstation_one_way",
-    tag: "Per hour",
+    tag: "One-way & round-trip",
     icon: (
       <path d="M13 5l7 7-7 7-1.4-1.4L16.2 13H4v-2h12.2l-4.6-4.6L13 5z" />
     ),
@@ -130,45 +130,8 @@ const FAQS = [
 export default function Home() {
   return (
     <PublicShell>
-      {/* HERO + LIVE PRICING */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 py-16 text-white md:py-24">
-        <div className="pointer-events-none absolute inset-0 -top-40 flex justify-center opacity-25" aria-hidden="true">
-          <div className="h-[500px] w-[800px] rounded-full bg-emerald-500 blur-[140px]" />
-        </div>
-
-        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 md:grid-cols-2">
-          <div>
-            <Hero />
-          </div>
-
-          <div
-            id="pricing"
-            className="card-shine droovee-card-shadow-dark rounded-3xl border border-slate-700/60 bg-white p-7 text-slate-900 backdrop-blur-xl md:p-8"
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-slate-900">Simple, transparent pricing</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Live fleet rates · Estimate before you book</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-600/20">
-                LAUNCH99
-              </span>
-            </div>
-
-            <PriceList />
-
-            <Link
-              href="/book"
-              className="mt-5 block rounded-xl bg-emerald-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-emerald-700"
-            >
-              Book Now →
-            </Link>
-            <Link href="/pricing" className="mt-3 block text-center text-xs font-semibold text-slate-600 hover:text-emerald-700">
-              See full fare breakdown
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* HERO */}
+      <Hero />
 
       {/* TRUST STRIP */}
       <section className="border-b border-slate-200 bg-white py-8">
@@ -232,6 +195,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* FULL PRICING / ESTIMATE CTA (private pricing) */}
+      <PricingCta />
 
       {/* HOW IT WORKS */}
       <section id="how-it-works" className="bg-white py-16">

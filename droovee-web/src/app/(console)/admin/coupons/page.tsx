@@ -55,7 +55,7 @@ export default function CouponsPage() {
 
   return (
     <>
-      <PageTitle title="Coupons" subtitle="Admin-managed codes. The launch offer is a first-hour price of ₹99." />
+      <PageTitle title="Coupons" subtitle="Admin-managed codes, including first-hour price offers." />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       {notice && <div className="mb-4"><Alert tone="success">{notice}</Alert></div>}
       {canWrite && (

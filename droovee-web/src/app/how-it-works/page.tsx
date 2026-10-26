@@ -7,7 +7,7 @@ const STEPS = [
     step: "01",
     title: "Select Trip & Schedule",
     desc: "Sign in or create a free account, then choose In-City, Outstation, or Airport Transfer. Enter your pickup address, scheduled date/time, and car model (Sedan, SUV, EV, Manual/Automatic).",
-    tip: "Tip: Use code LAUNCH99 for ₹99 on your first hour.",
+    tip: "Tip: Sign in to see live fares and any active offers.",
     badge: "Step 1: Online Booking",
   },
   {

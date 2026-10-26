@@ -3,6 +3,15 @@ const API_TARGET = process.env.API_TARGET ?? "http://127.0.0.1:4000";
 
 const nextConfig = {
   reactStrictMode: true,
+  // Bundling / performance
+  poweredByHeader: false,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 60,
+  },
+  experimental: {
+    optimizePackageImports: ["react", "react-dom", "next"],
+  },
   // Preview hosts (*.e2b.app) must be allowed to load dev assets.
   allowedDevOrigins: ["*.e2b.app"],
   // Browser code calls /api/v1/* on the same origin; Next proxies to the API server.

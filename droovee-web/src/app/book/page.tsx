@@ -90,7 +90,7 @@ function BookForm() {
     }
     const pid = params.get("package");
     if (!pid) return;
-    api<{ packages: any[] }>("/services", { auth: false })
+    api<{ packages: any[] }>("/services")
       .then((r) => {
         const found = r.packages.find((x) => x.id === pid);
         if (!found) return;
@@ -128,7 +128,7 @@ function BookForm() {
   const effectiveStart = isMonthly ? (startDate ? `${startDate}T${startTime}` : "") : start;
   const estimateStart = !isMonthly && immediate && immediateAt ? immediateAt : effectiveStart;
 
-  // Live estimate: no separate "see estimate" step.
+  // Live estimate: debounced; skip pure coupon/referral-only changes.
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -163,7 +163,7 @@ function BookForm() {
           nights: String(isOutstation ? nights : 0),
         });
         if (coupon.trim()) q.set("couponCode", coupon.trim().toUpperCase());
-        const e = await api<Estimate>(`/pricing/estimate?${q.toString()}`, { auth: false });
+        const e = await api<Estimate>(`/pricing/estimate?${q.toString()}`);
         if (!cancelled) setEstimate(e);
       } catch (err) {
         if (!cancelled) {
@@ -173,7 +173,7 @@ function BookForm() {
       } finally {
         if (!cancelled) setEstLoading(false);
       }
-    }, 300);
+    }, 500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -369,7 +369,7 @@ function BookForm() {
                       <Input type="datetime-local" value={end} onChange={(e) => { setEnd(e.target.value); setPkg(null); }} />
                     </Field>
                     {service === "outstation_round_trip" && (
-                      <Field label="Night halts" hint="₹399 per night.">
+                      <Field label="Night halts" hint="Per night for outstation trips.">
                         <Input type="number" min={0} max={30} value={nights} onChange={(e) => { setNights(Number(e.target.value)); setPkg(null); }} />
                       </Field>
                     )}
@@ -447,8 +447,8 @@ function BookForm() {
               <details className="mt-4 rounded-lg border border-slate-200 p-3">
                 <summary className="cursor-pointer text-sm font-medium text-slate-700">Have a coupon or referral code?</summary>
                 <div className="mt-3 grid gap-4 md:grid-cols-2">
-                  <Field label="Coupon code" error={fields.couponCode} hint={pkg ? "Packages use a fixed fare." : "New here? Try LAUNCH99."}>
-                    <Input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="LAUNCH99" disabled={!!pkg} />
+                  <Field label="Coupon code" error={fields.couponCode} hint={pkg ? "Packages use a fixed fare." : "Enter a code if you have one."}>
+                    <Input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="Optional" disabled={!!pkg} />
                   </Field>
                   <Field label="Referral code" error={fields.referralCode} hint="Got a friend's code? Enter it here.">
                     <Input value={referral} onChange={(e) => setReferral(e.target.value.toUpperCase())} placeholder="DVXXXXXX" />
