@@ -82,20 +82,27 @@ async function networkFirstPage(request) {
     const response = await fetch(request);
     if (response && response.status === 200) {
       await cache.put(request, response.clone());
+      return response;
+    }
+    // A dead origin behind a proxy surfaces as 5xx, not a network error.
+    if (response && response.status >= 500) {
+      const fallback = await cachedPage(cache, request);
+      if (fallback) return fallback;
     }
     return response;
   } catch {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-
-    const shell = await cache.match("/");
-    if (shell) return shell;
+    const fallback = await cachedPage(cache, request);
+    if (fallback) return fallback;
 
     return new Response("You are offline. Reconnect to continue booking.", {
       status: 503,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
+}
+
+async function cachedPage(cache, request) {
+  return (await cache.match(request)) ?? (await cache.match("/")) ?? null;
 }
 
 async function prune(cacheName, maxEntries) {
