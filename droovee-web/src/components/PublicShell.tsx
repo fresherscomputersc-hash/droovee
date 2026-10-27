@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { ReactNode, useEffect, useState } from "react";
 import { getSession, setSession, Session } from "@/lib/session";
 import { api, setAccessToken } from "@/lib/api";
@@ -57,6 +58,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#0F172A]">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
           
+<<<<<<< Updated upstream
           {/* Brand Logo */}
           <Link href="/" className="group flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 font-extrabold text-slate-950 shadow-md shadow-emerald-500/20 transition group-hover:scale-105">
@@ -66,6 +68,21 @@ export function PublicShell({ children }: { children: ReactNode }) {
               Droovee<span className="text-emerald-400">.</span>
             </span>
           </Link>
+=======
+          {/* ✅ Real Image Logo from public/logo.jpeg */}
+          {/* Logo */}
+{/* Logo */}
+<Link href="/" className="flex items-center py-1">
+ <Image
+  src="/logo.png"
+  alt="Droovee Logo"
+  width={180}
+  height={45}
+  className="h-7 sm:h-9 w-auto object-contain mix-blend-multiply"
+  priority
+/>
+</Link>
+>>>>>>> Stashed changes
 
           {/* Navigation Items */}
           <nav className="hidden items-center gap-1.5 sm:gap-2.5 md:flex">
@@ -136,7 +153,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
             )}
           </nav>
 
+<<<<<<< Updated upstream
           {/* Mobile Right Controls: Book + Hamburger */}
+=======
+          {/* Mobile Right Controls */}
+>>>>>>> Stashed changes
           <div className="flex items-center gap-2 md:hidden">
             <Link
               href="/book"
@@ -275,10 +296,16 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 text-sm sm:grid-cols-2 md:grid-cols-4 sm:px-6 lg:px-10">
           <div>
-            <div className="flex items-center gap-2 font-bold text-slate-900">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-xs text-white">D</span>
-              Droovee
-            </div>
+            {/* ✅ Matching Logo in Footer */}
+           <div className="flex items-center">
+          <Image
+           src="/logo.png"
+           alt="Droovee Logo"
+           width={120}
+           height={34}
+           className="h-8 w-auto object-contain"
+  />
+</div>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">
               Bhubaneswar’s trusted platform for hiring professional, police-verified drivers for your personal vehicle.
             </p>
