@@ -13,17 +13,15 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 py-20 text-white md:py-28">
       <style>{`
+        /* Opacity-only: scaling or translating a large blurred layer forces the
+           browser to re-rasterise the blur surface, which is the expensive part. */
         @keyframes hero-aurora-a {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .55; }
-          50% { transform: translate3d(36px, -28px, 0) scale(1.16); opacity: .8; }
+          0%, 100% { opacity: .55; }
+          50% { opacity: .8; }
         }
         @keyframes hero-aurora-b {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .4; }
-          50% { transform: translate3d(-30px, 22px, 0) scale(1.12); opacity: .65; }
-        }
-        @keyframes hero-aurora-c {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .35; }
-          50% { transform: translate3d(24px, 18px, 0) scale(1.1); opacity: .55; }
+          0%, 100% { opacity: .4; }
+          50% { opacity: .65; }
         }
         @keyframes hero-rise {
           from { opacity: 0; transform: translateY(14px); }
@@ -31,10 +29,9 @@ export function Hero() {
         }
         .hero-aurora-a { animation: hero-aurora-a 16s ease-in-out infinite; }
         .hero-aurora-b { animation: hero-aurora-b 20s ease-in-out infinite; }
-        .hero-aurora-c { animation: hero-aurora-c 24s ease-in-out infinite; }
         .hero-rise { opacity: 0; animation: hero-rise .45s cubic-bezier(.22, 1, .36, 1) forwards; }
         @media (prefers-reduced-motion: reduce) {
-          .hero-aurora-a, .hero-aurora-b, .hero-aurora-c, .hero-rise {
+          .hero-aurora-a, .hero-aurora-b, .hero-rise {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
@@ -43,9 +40,8 @@ export function Hero() {
       `}</style>
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        <div className="hero-aurora-a absolute -left-28 top-[-18%] h-[540px] w-[540px] rounded-full bg-emerald-500/25 blur-[120px]" />
-        <div className="hero-aurora-b absolute right-[-12%] top-[8%] h-[440px] w-[440px] rounded-full bg-teal-400/20 blur-[110px]" />
-        <div className="hero-aurora-c absolute bottom-[-32%] left-1/3 h-[480px] w-[480px] rounded-full bg-cyan-500/10 blur-[130px]" />
+        <div className="hero-aurora-a absolute -left-28 top-[-18%] h-[540px] w-[540px] rounded-full bg-emerald-500/25 blur-[80px]" />
+        <div className="hero-aurora-b absolute right-[-12%] top-[8%] h-[440px] w-[440px] rounded-full bg-teal-400/20 blur-[70px]" />
       </div>
 
       <div className="relative mx-auto max-w-4xl px-4 text-center">

@@ -2,10 +2,20 @@ import { PublicShell } from "@/components/PublicShell";
 import { Card } from "@/components/ui";
 import { CONTACT_ADDRESS, CONTACT_PHONE_DISPLAY } from "@/lib/contact";
 
+/**
+ * Prerendered with a 5-minute revalidate window. The business profile changes
+ * rarely (admin edit), so a cached copy is fine and avoids a per-visit round
+ * trip to the API. The timeout keeps a cold API from stalling the build.
+ */
+export const revalidate = 300;
+
 async function getBusiness() {
   try {
     const base = process.env.API_TARGET ?? "http://127.0.0.1:4000";
-    const r = await fetch(`${base}/api/v1/business`, { cache: "no-store" });
+    const r = await fetch(`${base}/api/v1/business`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(5000),
+    });
     if (!r.ok) return null;
     return await r.json();
   } catch {

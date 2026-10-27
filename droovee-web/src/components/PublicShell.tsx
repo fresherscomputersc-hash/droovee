@@ -236,7 +236,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <main className="flex-1">{children}</main>
 
       {/* Sticky Bottom Booking Bar (udrivo style mobile + desktop convenience) */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-[#0F172A]/95 p-3 backdrop-blur-md md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-[#0F172A] p-3 md:hidden">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <Link
             href="/book"
