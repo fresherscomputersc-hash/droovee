@@ -2,28 +2,45 @@
 
 import { useEffect, useState } from "react";
 
+/** Delay before the install banner appears, after the page is idle. */
+const BANNER_DELAY_MS = 2500;
+
 export function PwaRegister() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((reg) => {
-          console.log("Droovee Service Worker registered:", reg.scope);
-        })
-        .catch((err) => {
-          console.warn("Droovee Service Worker registration failed:", err);
-        });
+      // The service worker caches hashed chunks forever, which is wrong for
+      // `next dev` where filenames are stable. Production only.
+      if (process.env.NODE_ENV === "production") {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .catch((err) => {
+            console.warn("Droovee Service Worker registration failed:", err);
+          });
+      }
+
+      let showTimer: number | undefined;
 
       const handleBeforeInstallPrompt = (e: Event) => {
+        // The event is single-shot, so capture it immediately even though the
+        // banner is revealed later.
         e.preventDefault();
         setDeferredPrompt(e);
-        // Only show if user hasn't dismissed it in this session
-        const dismissed = sessionStorage.getItem("droovee_pwa_dismissed");
-        if (!dismissed) {
-          setShowInstallBanner(true);
+
+        if (sessionStorage.getItem("droovee_pwa_dismissed")) return;
+
+        // Reveal only once the page has settled. Showing during load made this
+        // panel the LCP element and painted a blurred overlay on the critical path.
+        const reveal = () => {
+          showTimer = window.setTimeout(() => setShowInstallBanner(true), BANNER_DELAY_MS);
+        };
+
+        if ("requestIdleCallback" in window) {
+          window.requestIdleCallback(reveal, { timeout: 4000 });
+        } else {
+          setTimeout(reveal, 1000);
         }
       };
 
@@ -31,6 +48,7 @@ export function PwaRegister() {
 
       return () => {
         window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        if (showTimer !== undefined) window.clearTimeout(showTimer);
       };
     }
   }, []);
@@ -38,10 +56,8 @@ export function PwaRegister() {
   async function handleInstall() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      setShowInstallBanner(false);
-    }
+    await deferredPrompt.userChoice;
+    setShowInstallBanner(false);
     setDeferredPrompt(null);
   }
 
@@ -53,7 +69,11 @@ export function PwaRegister() {
   if (!showInstallBanner) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-4 text-white shadow-2xl backdrop-blur-md sm:bottom-6 sm:left-auto sm:right-6">
+    <div
+      role="complementary"
+      aria-label="Install Droovee"
+      className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-4 text-white shadow-2xl sm:bottom-6 sm:left-auto sm:right-6"
+    >
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 font-bold text-white">
           D
