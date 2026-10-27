@@ -1,67 +1,107 @@
-// Droovee Service Worker v2.0
-const CACHE_NAME = "droovee-static-v2";
-const STATIC_ASSETS = [
-  "/manifest.json",
-  "/icon-192.svg",
-  "/icon-512.svg",
-];
+// Droovee Service Worker v3.0
+//
+// Two caches:
+//   - immutable: content-hashed /_next/static/* and the PWA icons/manifest.
+//     Cache-first is safe because a new deploy changes the filename.
+//   - pages: HTML snapshots used only as an offline fallback. Navigation stays
+//     network-first so users always get the current app shell.
+//
+// API traffic is never intercepted (see the early return in the fetch handler).
+const VERSION = "v3";
+const IMMUTABLE_CACHE = `droovee-immutable-${VERSION}`;
+const PAGE_CACHE = `droovee-pages-${VERSION}`;
+const KEEP_CACHES = [IMMUTABLE_CACHE, PAGE_CACHE];
+
+const PRECACHE = ["/manifest.json", "/icon-192.svg", "/icon-512.svg"];
+
+// Each deploy adds new hashed chunks; cap the cache so it cannot grow forever.
+const MAX_IMMUTABLE_ENTRIES = 200;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(IMMUTABLE_CACHE).then((cache) =>
+      // addAll() rejects the whole install if one file 404s; tolerate that.
+      Promise.all(
+        PRECACHE.map((path) => cache.add(path).catch(() => undefined))
+      )
+    )
   );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => !KEEP_CACHES.includes(key))
+          .map((key) => caches.delete(key))
       );
-    })
+      await prune(IMMUTABLE_CACHE, MAX_IMMUTABLE_ENTRIES);
+      await self.clients.claim();
+    })()
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+  const { request } = event;
+  if (request.method !== "GET") return;
 
-  // Strictly NEVER cache API requests, auth routes, or dynamic booking posts
-  if (url.pathname.startsWith("/api/") || event.request.method !== "GET") {
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return;
+
+  if (url.pathname.startsWith("/_next/static/") || PRECACHE.includes(url.pathname)) {
+    event.respondWith(cacheFirst(request, IMMUTABLE_CACHE));
     return;
   }
 
-  // Network-first strategy for navigation and pages, falling back to cache
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        // Cache successful static responses
-        if (
-          networkResponse &&
-          networkResponse.status === 200 &&
-          (url.pathname.startsWith("/_next/static/") || STATIC_ASSETS.includes(url.pathname))
-        ) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        // If offline, try cache
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Fallback if navigating to a page while offline
-          if (event.request.mode === "navigate") {
-            return caches.match("/");
-          }
-        });
-      })
-  );
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirstPage(request));
+  }
 });
+
+/** Immutable assets: serve from cache, fall back to the network. */
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(request);
+  if (hit) return hit;
+
+  const response = await fetch(request);
+  if (response && response.status === 200) {
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+/** HTML: always try the network first, keep a copy for offline use. */
+async function networkFirstPage(request) {
+  const cache = await caches.open(PAGE_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response && response.status === 200) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    const shell = await cache.match("/");
+    if (shell) return shell;
+
+    return new Response("You are offline. Reconnect to continue booking.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+}
+
+async function prune(cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  const excess = keys.slice(0, keys.length - maxEntries);
+  await Promise.all(excess.map((key) => cache.delete(key)));
+}
