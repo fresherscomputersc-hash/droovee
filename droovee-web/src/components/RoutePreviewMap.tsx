@@ -76,14 +76,14 @@ export function RoutePreviewMap({
       {/* Map Header / Location Helper */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 text-xs">
         <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="inline-block h-2 w-2 rounded-full bg-accent animate-pulse" />
           Bhubaneswar Service Area
         </span>
         <button
           type="button"
           onClick={getCurrentLocation}
           disabled={locating}
-          className="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:text-emerald-800 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 font-medium text-brand-link hover:text-brand-ink disabled:opacity-50"
         >
           <span>🎯</span>
           {locating ? "Locating…" : "Use my current location"}
@@ -102,7 +102,7 @@ export function RoutePreviewMap({
         <div
           className="absolute inset-0 opacity-20 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(#059669 0.75px, transparent 0.75px), radial-gradient(#0f172a 0.75px, #f8fafc 0.75px)",
+            backgroundImage: "radial-gradient(#052b66 0.75px, transparent 0.75px), radial-gradient(#001433 0.75px, #f8fafc 0.75px)",
             backgroundSize: "20px 20px",
             backgroundPosition: "0 0, 10px 10px",
           }}
@@ -112,23 +112,23 @@ export function RoutePreviewMap({
         <div className="relative z-10 flex h-full flex-col justify-around">
           {/* Pickup Node */}
           <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white shadow-md shadow-emerald-600/30">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-brand-ink shadow-md shadow-accent/25">
               P
             </span>
-            <div className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">
+            <div className="min-w-0 flex-1 truncate text-xs font-semibold text-brand-ink">
               {pickup.trim() ? pickup : <span className="text-slate-400 italic font-normal">Enter pickup point below</span>}
             </div>
           </div>
 
           {/* Dotted connecting route line */}
-          <div className="ml-3.5 my-1 h-8 w-0.5 border-l-2 border-dashed border-emerald-500/70" />
+          <div className="ml-3.5 my-1 h-8 w-0.5 border-l-2 border-dashed border-brand-link/60" />
 
           {/* Destination Node */}
           <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white shadow-md shadow-slate-900/30">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-ink text-xs font-bold text-white shadow-md shadow-brand-ink/30">
               D
             </span>
-            <div className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">
+            <div className="min-w-0 flex-1 truncate text-xs font-semibold text-brand-ink">
               {destination && destination.trim() ? destination : <span className="text-slate-400 italic font-normal">Trip within city / or enter destination</span>}
             </div>
           </div>
@@ -138,7 +138,7 @@ export function RoutePreviewMap({
         {hasRoute && estimatedKm && (
           <div className="absolute right-4 bottom-4 z-10 flex items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3 py-1.5 shadow-sm backdrop-blur">
             <div className="text-right">
-              <p className="text-[11px] font-bold text-slate-900">~{estimatedKm} km</p>
+              <p className="text-[11px] font-bold text-brand-ink">~{estimatedKm} km</p>
               <p className="text-[10px] text-slate-500">~{estimatedMin} mins driving</p>
             </div>
             <span className="text-base">🚗</span>
@@ -161,7 +161,7 @@ export function RoutePreviewMap({
                   onSelectDestination(hub);
                 }
               }}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-800 transition"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:border-brand-ink/40 hover:bg-brand-soft hover:text-brand-ink transition"
             >
               + {hub}
             </button>

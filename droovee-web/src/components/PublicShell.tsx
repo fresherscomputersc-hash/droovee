@@ -53,23 +53,21 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
   return (
     <PricingGateProvider>
-      <div className="flex min-h-screen flex-col bg-slate-50 selection:bg-emerald-500 selection:text-white pb-24 md:pb-0">
-        {/* HEADER / NAVBAR - Dark slate header */}
-        <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#0F172A]">
+      <div className="flex min-h-screen flex-col bg-slate-50 selection:bg-accent selection:text-brand-ink pb-24 md:pb-0">
+        {/* HEADER / NAVBAR — brand ink */}
+        <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-ink">
           <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
-            
-            {/* Single Unified Logo */}
-            <Link href="/" className="flex items-center gap-2 py-1">
-              <div className="rounded-lg bg-white px-2 py-1 shadow-sm">
-                <Image
-                  src="/logo.png"
-                  alt="Droovee Logo"
-                  width={140}
-                  height={35}
-                  className="h-6 sm:h-7 w-auto object-contain"
-                  priority
-                />
-              </div>
+
+            {/* Reversed logo: white wordmark + amber dot, no plate needed on ink */}
+            <Link href="/" className="flex items-center py-1">
+              <Image
+                src="/logo-reverse.png"
+                alt="Droovee Logo"
+                width={150}
+                height={30}
+                className="h-6 sm:h-7 w-auto object-contain"
+                priority
+              />
             </Link>
 
             {/* Desktop Navigation Items */}
@@ -90,7 +88,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
               {/* Language Pill */}
               <button
                 onClick={toggleLang}
-                className="rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:border-white/40 hover:text-white"
                 aria-label="Switch language"
               >
                 {lang === "en" ? "ଓଡ଼ିଆ" : "EN"}
@@ -100,20 +98,20 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 <>
                   <Link
                     href="/bookings"
-                    className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-slate-700 hover:text-emerald-300"
+                    className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold text-accent transition hover:bg-white/15"
                   >
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="h-2 w-2 rounded-full bg-accent animate-pulse"></span>
                     My Trips
                   </Link>
                   <Link
                     href="/book"
-                    className="rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-emerald-400"
+                    className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-bold text-brand-ink shadow-sm transition hover:bg-accent-hover"
                   >
                     Book Driver
                   </Link>
                   <button
                     onClick={signOut}
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-rose-400"
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-white/10 hover:text-rose-300"
                   >
                     Sign Out
                   </button>
@@ -122,19 +120,19 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 <>
                   <Link
                     href="/login"
-                    className="inline-flex items-center justify-center rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 transition shadow-sm"
+                    className="text-xs font-semibold text-slate-300 transition hover:text-white"
                   >
                     Login
                   </Link>
                   <Link
                     href="/register"
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:border-slate-500 hover:text-white transition"
+                    className="inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-white/40 hover:text-white"
                   >
                     Register
                   </Link>
                   <Link
                     href="/book"
-                    className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-extrabold text-slate-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400 transition hover:scale-105"
+                    className="inline-flex items-center justify-center rounded-lg bg-accent px-3.5 py-1.5 text-xs font-extrabold text-brand-ink shadow-md shadow-accent/25 hover:bg-accent-hover transition hover:scale-105"
                   >
                     Hire a Driver
                   </Link>
@@ -146,13 +144,13 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-2 md:hidden">
               <Link
                 href="/book"
-                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 shadow-sm"
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-brand-ink shadow-sm"
               >
                 Book Driver
               </Link>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10"
                 aria-label="Toggle Navigation Menu"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -168,48 +166,48 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
           {/* Mobile Dropdown Drawer */}
           {mobileMenuOpen && (
-            <div className="border-b border-slate-800 bg-[#0F172A] px-4 py-5 shadow-xl md:hidden">
+            <div className="border-b border-white/10 bg-brand-ink px-4 py-5 shadow-xl md:hidden">
               <div className="flex flex-col space-y-3.5 text-sm font-medium">
                 <Link
                   href="/how-it-works"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-slate-300 hover:text-emerald-400"
+                  className="text-slate-300 hover:text-accent"
                 >
                   How It Works
                 </Link>
                 <PricingNavButton
                   onOpen={() => setMobileMenuOpen(false)}
-                  className="text-left text-slate-300 hover:text-emerald-400"
+                  className="text-left text-slate-300 hover:text-accent"
                 >
                   Fares &amp; Pricing
                 </PricingNavButton>
                 <Link
                   href="/testimonials"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-slate-300 hover:text-emerald-400"
+                  className="text-slate-300 hover:text-accent"
                 >
                   Customer Testimonials
                 </Link>
                 <Link
                   href="/track"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-slate-300 hover:text-emerald-400"
+                  className="text-slate-300 hover:text-accent"
                 >
                   Track Booking
                 </Link>
                 <Link
                   href="/packages"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-slate-300 hover:text-emerald-400"
+                  className="text-slate-300 hover:text-accent"
                 >
                   Outstation Packages
                 </Link>
 
-                <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div className="flex items-center justify-between border-t border-white/10 pt-3">
                   <span className="text-xs text-slate-400">Language:</span>
                   <button
                     onClick={toggleLang}
-                    className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-200"
+                    className="rounded-md border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200"
                   >
                     {lang === "en" ? "ଓଡ଼ିଆରେ ପଢ଼ନ୍ତୁ" : "Switch to English"}
                   </button>
@@ -219,7 +217,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                   {session?.kind === "customer" ? (
                     <button
                       onClick={signOut}
-                      className="w-full rounded-xl border border-slate-800 py-2.5 text-center font-semibold text-rose-400"
+                      className="w-full rounded-xl border border-white/15 py-2.5 text-center font-semibold text-rose-300"
                     >
                       Sign Out
                     </button>
@@ -227,7 +225,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                     <Link
                       href="/login"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="block w-full rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-center font-semibold text-slate-200 hover:bg-slate-700"
+                      className="block w-full rounded-xl border border-white/15 bg-white/5 py-2.5 text-center font-semibold text-slate-200 hover:bg-white/10"
                     >
                       Sign In to Account
                     </Link>
@@ -242,18 +240,18 @@ export function PublicShell({ children }: { children: ReactNode }) {
         <main className="flex-1">{children}</main>
 
         {/* Sticky Bottom Booking Bar on Mobile */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-[#0F172A] p-3 md:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-brand-ink p-3 md:hidden">
           <div className="mx-auto flex max-w-md items-center justify-between gap-3">
             <Link
               href="/book"
-              className="flex-1 rounded-xl bg-emerald-500 py-3 text-center text-sm font-extrabold text-slate-950 shadow-lg hover:bg-emerald-400 transition"
+              className="flex-1 rounded-xl bg-accent py-3 text-center text-sm font-extrabold text-brand-ink shadow-lg hover:bg-accent-hover transition"
             >
               Book a Driver Now
             </Link>
             <a
               href={CONTACT_TEL}
               aria-label="Call Droovee"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white ring-1 ring-slate-700"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
                 <path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
@@ -295,7 +293,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
               </p>
               <p className="mt-3 text-xs text-slate-400">{CONTACT_ADDRESS}</p>
               <div className="mt-4 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-600/20">
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-link ring-1 ring-brand-ink/20">
                   100% Verified
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
@@ -305,39 +303,39 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </div>
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-900">Trip Options</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-ink">Trip Options</p>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                <li><Link href="/services/hourly" className="hover:text-emerald-700 transition">Hourly Driver</Link></li>
-                <li><Link href="/services/outstation_one_way" className="hover:text-emerald-700 transition">One-Way Outstation</Link></li>
-                <li><Link href="/services/outstation_round_trip" className="hover:text-emerald-700 transition">Round-Trip Outstation</Link></li>
-                <li><Link href="/services/airport_pickup_drop" className="hover:text-emerald-700 transition">Airport Pickup & Drop</Link></li>
-                <li><Link href="/services/monthly_office" className="hover:text-emerald-700 transition">Office Pickup & Drop</Link></li>
-                <li><Link href="/packages" className="hover:text-emerald-700 transition">Fixed-Price Packages</Link></li>
+                <li><Link href="/services/hourly" className="hover:text-brand-link transition">Hourly Driver</Link></li>
+                <li><Link href="/services/outstation_one_way" className="hover:text-brand-link transition">One-Way Outstation</Link></li>
+                <li><Link href="/services/outstation_round_trip" className="hover:text-brand-link transition">Round-Trip Outstation</Link></li>
+                <li><Link href="/services/airport_pickup_drop" className="hover:text-brand-link transition">Airport Pickup & Drop</Link></li>
+                <li><Link href="/services/monthly_office" className="hover:text-brand-link transition">Office Pickup & Drop</Link></li>
+                <li><Link href="/packages" className="hover:text-brand-link transition">Fixed-Price Packages</Link></li>
               </ul>
             </div>
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-900">Support & Policies</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-ink">Support & Policies</p>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                <li><Link href="/how-it-works" className="hover:text-emerald-700 transition">How It Works</Link></li>
-                <li><Link href="/testimonials" className="hover:text-emerald-700 transition">Customer Testimonials</Link></li>
-                <li><Link href="/faq" className="hover:text-emerald-700 transition">FAQ & Help</Link></li>
-                <li><Link href="/track" className="hover:text-emerald-700 transition">Track Active Booking</Link></li>
-                <li><Link href="/terms" className="hover:text-emerald-700 transition">Terms & Conditions</Link></li>
-                <li><Link href="/privacy" className="hover:text-emerald-700 transition">Privacy Policy</Link></li>
+                <li><Link href="/how-it-works" className="hover:text-brand-link transition">How It Works</Link></li>
+                <li><Link href="/testimonials" className="hover:text-brand-link transition">Customer Testimonials</Link></li>
+                <li><Link href="/faq" className="hover:text-brand-link transition">FAQ & Help</Link></li>
+                <li><Link href="/track" className="hover:text-brand-link transition">Track Active Booking</Link></li>
+                <li><Link href="/terms" className="hover:text-brand-link transition">Terms & Conditions</Link></li>
+                <li><Link href="/privacy" className="hover:text-brand-link transition">Privacy Policy</Link></li>
               </ul>
             </div>
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-900">Contact Us 24×7</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-ink">Contact Us 24×7</p>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
                 <li>
                   <span className="block text-slate-400">Call Dispatch:</span>
-                  <a href={CONTACT_TEL} className="font-semibold text-slate-900 hover:text-emerald-600">{CONTACT_PHONE_DISPLAY}</a>
+                  <a href={CONTACT_TEL} className="font-semibold text-brand-ink hover:text-brand-link">{CONTACT_PHONE_DISPLAY}</a>
                 </li>
                 <li>
                   <span className="block text-slate-400">WhatsApp Dispatch:</span>
-                  <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:underline">Chat on WhatsApp</a>
+                  <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" className="font-semibold text-brand-link hover:underline">Chat on WhatsApp</a>
                 </li>
                 <li>
                   <span className="block text-slate-400">Email:</span>

@@ -15,7 +15,7 @@ export function DriverCard({ driver }: { driver: { name?: string; phone?: string
           // eslint-disable-next-line @next/next/no-img-element
           <img src={driver.photoUrl} alt={driver.name ?? "Driver"} className="h-16 w-16 rounded-full object-cover ring-1 ring-slate-200" />
         ) : (
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-xl font-semibold text-emerald-800">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-soft text-xl font-semibold text-brand-ink">
             {(driver.name ?? "?").slice(0, 1).toUpperCase()}
           </span>
         )}
@@ -28,7 +28,7 @@ export function DriverCard({ driver }: { driver: { name?: string; phone?: string
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <a href={`tel:${driver.phone}`} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">Call driver</a>
+        <a href={`tel:${driver.phone}`} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-brand-ink hover:bg-accent-hover">Call driver</a>
         <a href={`https://wa.me/${String(driver.phone ?? "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-4 py-2 text-sm font-medium ring-1 ring-slate-300 hover:bg-slate-50">WhatsApp driver</a>
       </div>
     </Card>
@@ -43,7 +43,7 @@ export function EmergencyCard({ bookingNumber }: { bookingNumber?: string }) {
       <h2 className="font-semibold text-rose-700">Emergency? Do this</h2>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
         <li>Stay safe. Move away from traffic if you can.</li>
-        <li>Call us now: <a href={CONTACT_TEL} className="font-semibold text-emerald-700 underline">{CONTACT_PHONE_DISPLAY}</a> (24×7).</li>
+        <li>Call us now: <a href={CONTACT_TEL} className="font-semibold text-brand-link underline">{CONTACT_PHONE_DISPLAY}</a> (24×7).</li>
         <li>Accident: call police (100) and ambulance (108) first, then us.</li>
         <li>Breakdown or driver unreachable: call us — we send a replacement.</li>
       </ol>
@@ -60,7 +60,7 @@ export function HelpOnWhatsApp({ bookingNumber }: { bookingNumber?: string }) {
   const href = waWithText(bookingNumber ? `Hi Droovee, I need help with booking ${bookingNumber}. ` : "Hi Droovee, I need help. ");
   return (
     <p className="mt-2 text-xs text-slate-500">
-      Need help? <a href={href} target="_blank" rel="noreferrer" className="font-medium text-emerald-700 underline">Message us on WhatsApp</a> — we reply within 2 hours (8am–10pm).
+      Need help? <a href={href} target="_blank" rel="noreferrer" className="font-medium text-brand-link underline">Message us on WhatsApp</a> — we reply within 2 hours (8am–10pm).
     </p>
   );
 }

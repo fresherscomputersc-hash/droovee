@@ -117,7 +117,7 @@ export default function RegisterPage() {
             <Button type="submit" className="w-full" disabled={busy}>{busy ? "Creating account…" : "Create account"}</Button>
           </form>
           <p className="mt-6 text-center text-sm text-slate-600">
-            Already have an account? <Link href="/login" className="font-medium text-emerald-700 hover:underline">Sign in</Link>
+            Already have an account? <Link href="/login" className="font-medium text-brand-link hover:underline">Sign in</Link>
           </p>
         </Card>
       </div>

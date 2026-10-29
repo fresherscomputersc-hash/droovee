@@ -105,7 +105,7 @@ function LoginForm() {
                 key={m}
                 type="button"
                 onClick={() => { setMode(m); setError(null); setNotice(null); }}
-                className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${mode === m ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
+                className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${mode === m ? "bg-accent text-brand-ink ring-brand-ink" : "bg-white ring-slate-300"}`}
               >
                 {m === "password" ? "Password" : "OTP"}
               </button>
@@ -134,11 +134,11 @@ function LoginForm() {
           )}
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
           <p className="text-right text-sm">
-            <Link href="/forgot-password" className="font-medium text-emerald-700 hover:underline">Forgot password?</Link>
+            <Link href="/forgot-password" className="font-medium text-brand-link hover:underline">Forgot password?</Link>
           </p>
         </form>
         <p className="mt-6 text-center text-sm text-slate-600">
-          New to Droovee? <Link href="/register" className="font-medium text-emerald-700 hover:underline">Create an account</Link>
+          New to Droovee? <Link href="/register" className="font-medium text-brand-link hover:underline">Create an account</Link>
         </p>
       </Card>
     </div>

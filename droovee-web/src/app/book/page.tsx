@@ -266,22 +266,22 @@ function BookForm() {
       <div className="mx-auto max-w-6xl px-4 py-8 pb-28 lg:pb-10">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Book a driver</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Book a verified driver</h1>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-link">Book a driver</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-brand-ink sm:text-3xl">Book a verified driver</h1>
             <p className="mt-1 text-sm text-slate-500">
               Booking as <strong className="text-slate-800">{account?.name ?? "your account"}</strong>
               {account?.phone ? <> · {account.phone}</> : null}. Your trip is saved to My Trips automatically.
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <Link href="/bookings" className="font-semibold text-emerald-700 hover:underline">My Trips</Link>
+            <Link href="/bookings" className="font-semibold text-brand-link hover:underline">My Trips</Link>
             <span aria-hidden="true">·</span>
-            <a href={CONTACT_TEL} className="font-semibold text-slate-700 hover:text-emerald-700">{CONTACT_PHONE_DISPLAY}</a>
+            <a href={CONTACT_TEL} className="font-semibold text-slate-700 hover:text-brand-link">{CONTACT_PHONE_DISPLAY}</a>
           </div>
         </div>
 
         {pkg && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-ink/15 bg-brand-soft px-4 py-3 text-sm text-brand-ink">
             <span>
               Package: <strong>{pkg.name}</strong> at a fixed {money(pkg.fixedPrice)} — details prefilled.
             </span>
@@ -333,7 +333,7 @@ function BookForm() {
                         setImmediate(e.target.checked);
                         setImmediateAt(e.target.checked ? new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 16) : null);
                       }}
-                      className="h-4 w-4 accent-emerald-600"
+                      className="h-4 w-4 accent-brand-ink"
                     />
                     Need a driver now
                   </label>
@@ -397,7 +397,7 @@ function BookForm() {
                             type="button"
                             key={d}
                             onClick={() => { toggleDay(i); setPkg(null); }}
-                            className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${days.includes(i) ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
+                            className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${days.includes(i) ? "bg-accent text-brand-ink ring-brand-ink" : "bg-white ring-slate-300"}`}
                           >
                             {d}
                           </button>
@@ -431,16 +431,16 @@ function BookForm() {
                 </Field>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 space-y-1.5">
-                  <p className="font-semibold text-slate-900">Good to know</p>
-                  <p><span className="font-semibold text-emerald-700">You pay:</span> tolls, parking, fuel, and the driver&apos;s food/stay/return travel on applicable trips.</p>
-                  <p><span className="font-semibold text-emerald-700">We cover:</span> damage to your vehicle while our driver is driving is our direct operational responsibility.</p>
+                  <p className="font-semibold text-brand-ink">Good to know</p>
+                  <p><span className="font-semibold text-brand-link">You pay:</span> tolls, parking, fuel, and the driver&apos;s food/stay/return travel on applicable trips.</p>
+                  <p><span className="font-semibold text-brand-link">We cover:</span> damage to your vehicle while our driver is driving is our direct operational responsibility.</p>
                 </div>
               </div>
             </Card>
 
             <Card>
               <h2 className="font-semibold">3. Confirm</h2>
-              <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-200">
+              <div className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-sm text-brand-ink ring-1 ring-brand-ink/15">
                 No advance payment. Pay by cash or UPI after your trip.
               </div>
 
@@ -457,10 +457,10 @@ function BookForm() {
               </details>
 
               <label className="mt-4 flex items-start gap-2 text-sm">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-emerald-600" />
+                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-brand-ink" />
                 <span>
-                  I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="font-medium text-emerald-800 underline">Terms</a> and{" "}
-                  <a href="/cancellation" target="_blank" rel="noreferrer" className="font-medium text-emerald-800 underline">Cancellation policy</a>. *
+                  I agree to the <a href="/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-ink underline">Terms</a> and{" "}
+                  <a href="/cancellation" target="_blank" rel="noreferrer" className="font-medium text-brand-ink underline">Cancellation policy</a>. *
                 </span>
               </label>
               {fields.agreedToTerms && <p className="mt-1 text-xs text-rose-600">{fields.agreedToTerms}</p>}
@@ -476,7 +476,7 @@ function BookForm() {
             <Card>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-semibold">Your estimate</h2>
-                <Link href="/pricing" className="text-xs font-semibold text-emerald-700 hover:underline">Full pricing</Link>
+                <Link href="/pricing" className="text-xs font-semibold text-brand-link hover:underline">Full pricing</Link>
               </div>
               {estLoading && <p className="mt-3 text-sm text-slate-500">Calculating…</p>}
               {estError && <p className="mt-3 text-sm text-rose-700">{estError}</p>}
@@ -507,14 +507,14 @@ function BookForm() {
               <h2 className="font-semibold">What happens next</h2>
               <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
                 <li>We confirm a verified driver for your slot.</li>
-                <li>Driver details appear in <Link href="/bookings" className="font-medium text-emerald-700 underline">My Trips</Link>.</li>
+                <li>Driver details appear in <Link href="/bookings" className="font-medium text-brand-link underline">My Trips</Link>.</li>
                 <li>Pay by cash or UPI after the trip.</li>
               </ol>
             </Card>
 
             <Card className="mt-4">
               <p className="text-sm text-slate-600">Need help choosing?</p>
-              <a href={CONTACT_TEL} className="mt-1 block text-lg font-semibold text-emerald-700 hover:underline">{CONTACT_PHONE_DISPLAY}</a>
+              <a href={CONTACT_TEL} className="mt-1 block text-lg font-semibold text-brand-link hover:underline">{CONTACT_PHONE_DISPLAY}</a>
               <p className="mt-1 text-xs text-slate-500">Our Bhubaneswar dispatch team is available 24×7.</p>
             </Card>
           </aside>

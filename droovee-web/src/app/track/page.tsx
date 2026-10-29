@@ -18,8 +18,8 @@ function Timeline({ status }: { status: string }) {
       {PIPELINE.map((s, i) => (
         <li key={s} className="flex gap-3">
           <div className="flex flex-col items-center">
-            <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${i < idx ? "bg-emerald-600 text-white" : i === idx ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-600" : "bg-slate-100 text-slate-400"}`}>{i < idx ? "✓" : i + 1}</span>
-            {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-emerald-600" : "bg-slate-200"}`} />}
+            <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${i < idx ? "bg-accent text-brand-ink" : i === idx ? "bg-brand-soft text-brand-ink ring-2 ring-brand-ink" : "bg-slate-100 text-slate-400"}`}>{i < idx ? "✓" : i + 1}</span>
+            {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-accent" : "bg-slate-200"}`} />}
           </div>
           <div className="pb-5"><p className="text-sm font-medium">{STATUS_LABEL[s] ?? s}</p></div>
         </li>
@@ -226,7 +226,7 @@ function TrackForm() {
             key={m}
             type="button"
             onClick={() => { setMode(m); setError(null); setSingle(null); setList(null); }}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ring-1 ${mode === m ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ring-1 ${mode === m ? "bg-accent text-brand-ink ring-brand-ink" : "bg-white ring-slate-300"}`}
           >
             {m === "id" ? "Booking ID" : "Mobile number"}
           </button>

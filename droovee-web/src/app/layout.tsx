@@ -8,8 +8,12 @@ export const metadata: Metadata = {
     "Book trained, verified drivers for your own car in Bhubaneswar. Hourly, outstation, airport, and monthly office drivers. 24x7 doorstep dispatch.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-192.svg",
-    apple: "/icon-192.svg",
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
@@ -21,7 +25,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#059669",
+  themeColor: "#001433",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -34,7 +34,7 @@ export default function MyBookingsPage() {
       <div className="mx-auto max-w-6xl px-4 py-10">
         <PageTitle title="My bookings" subtitle="Status, driver details and fare for each booking." actions={<LinkButton href="/book">Book a driver</LinkButton>} />
         {referralCode && (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-4 text-sm ring-1 ring-emerald-200">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-brand-soft p-4 text-sm ring-1 ring-brand-ink/15">
             <span>🎁 Your referral code: <strong className="font-mono">{referralCode}</strong> — friends enter it when booking, you earn ₹100 credit when their trip completes.</span>
             <button
               type="button"
@@ -49,7 +49,7 @@ export default function MyBookingsPage() {
         {items === null && !error && <p className="text-sm text-slate-500">Loading…</p>}
         {items && items.length === 0 && (
           <Empty title="No bookings yet">
-            <Link href="/book" className="font-medium text-emerald-700 underline">Book your first driver</Link>
+            <Link href="/book" className="font-medium text-brand-link underline">Book your first driver</Link>
           </Empty>
         )}
         {items && items.length > 0 && (
@@ -57,7 +57,7 @@ export default function MyBookingsPage() {
             {items.map((b) => (
               <tr key={b.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-mono">
-                  <Link href={`/bookings/${b.id}`} className="text-emerald-700 hover:underline">{b.bookingNumber}</Link>
+                  <Link href={`/bookings/${b.id}`} className="text-brand-link hover:underline">{b.bookingNumber}</Link>
                 </td>
                 <td className="px-4 py-3">{SERVICE_LABEL[b.serviceType] ?? b.serviceType}</td>
                 <td className="px-4 py-3">{dateTime(b.scheduledStart)}</td>

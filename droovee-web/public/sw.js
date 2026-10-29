@@ -7,12 +7,12 @@
 //     network-first so users always get the current app shell.
 //
 // API traffic is never intercepted (see the early return in the fetch handler).
-const VERSION = "v3";
+const VERSION = "v4";
 const IMMUTABLE_CACHE = `droovee-immutable-${VERSION}`;
 const PAGE_CACHE = `droovee-pages-${VERSION}`;
 const KEEP_CACHES = [IMMUTABLE_CACHE, PAGE_CACHE];
 
-const PRECACHE = ["/manifest.json", "/icon-192.svg", "/icon-512.svg"];
+const PRECACHE = ["/manifest.json", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 // Each deploy adds new hashed chunks; cap the cache so it cannot grow forever.
 const MAX_IMMUTABLE_ENTRIES = 200;
