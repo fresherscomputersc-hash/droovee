@@ -54,37 +54,21 @@ const SERVICES = [
     title: "Hourly & city",
     desc: "Shopping, meetings, hospital visits and daily errands across Bhubaneswar.",
     href: "/services/hourly",
-    tag: "City & errands",
-    icon: (
-      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.6 3.2 1.9-.9 1.5L11 13.5V7h2v5.6z" />
-    ),
   },
   {
     title: "Outstation",
     desc: "One-way or round-trip drivers to Puri, Cuttack, Konark and beyond.",
     href: "/services/outstation_one_way",
-    tag: "One-way & round-trip",
-    icon: (
-      <path d="M13 5l7 7-7 7-1.4-1.4L16.2 13H4v-2h12.2l-4.6-4.6L13 5z" />
-    ),
   },
   {
     title: "Airport & station",
     desc: "Punctual pickup and drop at Biju Patnaik Airport, railway and bus stations.",
     href: "/services/airport_pickup_drop",
-    tag: "Flight-tracked",
-    icon: (
-      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-    ),
   },
   {
     title: "Monthly & corporate",
     desc: "Dedicated daily commute drivers for offices, hospitals and institutions.",
     href: "/packages",
-    tag: "GST invoicing",
-    icon: (
-      <path d="M4 21V3h10v6h6v12H4zm2-2h2v-2H6v2zm0-4h2v-2H6v2zm0-4h2V9H6v2zm0-4h2V5H6v2zm4 12h2v-2h-2v2zm0-4h2v-2h-2v2zm0-4h2V9h-2v2zm0-4h2V5h-2v2zm4 12h4v-2h-2v-2h2v-2h-2v-2h2V9h-4v10z" />
-    ),
   },
 ];
 
@@ -212,15 +196,7 @@ export default function Home() {
                 className="droovee-card-shadow group flex flex-col justify-between rounded-2xl border border-slate-200/80 border-t-2 border-t-accent bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:border-t-accent"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand-ink transition group-hover:bg-brand-ink group-hover:text-accent">
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">{s.icon}</svg>
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 group-hover:bg-brand-soft group-hover:text-brand-link">
-                      {s.tag}
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-lg font-bold text-brand-ink transition group-hover:text-brand-link">{s.title}</h3>
+                  <h3 className="text-lg font-bold text-brand-ink transition group-hover:text-brand-link">{s.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.desc}</p>
                 </div>
                 <div className="mt-5 flex items-center gap-1.5 text-xs font-bold text-brand-link">
