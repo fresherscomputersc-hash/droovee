@@ -20,7 +20,7 @@ export function ShareLink({ token }: { token: string }) {
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <code className="min-w-0 flex-1 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs">{url}</code>
       <Button type="button" variant="secondary" onClick={copy}>{copied ? "Copied ✓" : "Copy link"}</Button>
-      <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-emerald-700 underline">Open</a>
+      <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-link underline">Open</a>
     </div>
   );
 }

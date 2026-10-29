@@ -235,14 +235,14 @@ export function PricingGateProvider({ children }: { children: React.ReactNode })
               type="button"
               onClick={closeGate}
               aria-label="Close sign-in"
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
               </svg>
             </button>
 
-            <h2 id="pricing-gate-title" className="pr-10 text-lg font-bold text-slate-900">
+            <h2 id="pricing-gate-title" className="pr-10 text-lg font-bold text-brand-ink">
               {intent === "estimate" ? "Sign in to get an estimate" : "Sign in to see pricing"}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -293,13 +293,13 @@ export function PricingGateProvider({ children }: { children: React.ReactNode })
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <p className="text-slate-500">
                   New to Droovee?{" "}
-                  <Link href="/register" className="font-semibold text-emerald-700 hover:underline">
+                  <Link href="/register" className="font-semibold text-brand-link hover:underline">
                     Create an account
                   </Link>
                 </p>
                 <Link
                   href={`/login?next=${encodeURIComponent(intent === "estimate" ? "/pricing#estimate" : "/pricing")}`}
-                  className="font-medium text-slate-500 hover:text-emerald-700 hover:underline"
+                  className="font-medium text-slate-500 hover:text-brand-link hover:underline"
                 >
                   Use password instead
                 </Link>

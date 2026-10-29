@@ -49,7 +49,7 @@ export default function SharePage() {
             <div className="flex justify-between"><dt className="text-slate-500">Service</dt><dd className="font-medium">{SERVICE_LABEL[s.serviceType] ?? s.serviceType}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Start</dt><dd className="font-medium">{dateTime(s.scheduledStart)}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Status</dt><dd className="font-medium">{STATUS_LABEL[s.status] ?? s.status}</dd></div>
-            {s.driverArrived && <div className="flex justify-between"><dt className="text-slate-500">Driver</dt><dd className="font-medium text-emerald-700">Arrived at pickup ✓</dd></div>}
+            {s.driverArrived && <div className="flex justify-between"><dt className="text-slate-500">Driver</dt><dd className="font-medium text-brand-link">Arrived at pickup ✓</dd></div>}
             {s.tripEnded && <div className="flex justify-between"><dt className="text-slate-500">Trip</dt><dd className="font-medium">Ended ✓</dd></div>}
           </dl>
           {idx >= 0 && (
@@ -57,8 +57,8 @@ export default function SharePage() {
               {PIPELINE.map((p, i) => (
                 <li key={p} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${i < idx ? "bg-emerald-600 text-white" : i === idx ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-600" : "bg-slate-100 text-slate-400"}`}>{i < idx ? "✓" : i + 1}</span>
-                    {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-emerald-600" : "bg-slate-200"}`} />}
+                    <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${i < idx ? "bg-accent text-brand-ink" : i === idx ? "bg-brand-soft text-brand-ink ring-2 ring-brand-ink" : "bg-slate-100 text-slate-400"}`}>{i < idx ? "✓" : i + 1}</span>
+                    {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-accent" : "bg-slate-200"}`} />}
                   </div>
                   <div className="pb-5"><p className="text-sm font-medium">{STATUS_LABEL[p] ?? p}</p></div>
                 </li>

@@ -338,7 +338,7 @@ export function NewBookingAlarm() {
             <Link
               href={`/admin/bookings/${current.id}`}
               onClick={() => acknowledge([current.id])}
-              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-brand-ink hover:bg-accent-hover"
             >
               View booking
             </Link>

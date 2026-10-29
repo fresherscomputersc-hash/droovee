@@ -91,7 +91,7 @@ export default function DriverJobPage() {
             {job.instructions && <div><dt className="text-slate-500">Notes</dt><dd className="font-medium">{job.instructions}</dd></div>}
           </dl>
           <div className="mt-3 flex gap-2">
-            <a href={`tel:${job.customer?.phone}`} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white">Call customer</a>
+            <a href={`tel:${job.customer?.phone}`} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-brand-ink">Call customer</a>
             <a href={`https://wa.me/${String(job.customer?.phone ?? "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium ring-1 ring-slate-300">WhatsApp</a>
           </div>
         </Card>

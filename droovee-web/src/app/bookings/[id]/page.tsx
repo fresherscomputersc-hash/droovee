@@ -26,15 +26,15 @@ function Timeline({ status }: { status: string }) {
             <div className="flex flex-col items-center">
               <span
                 className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${
-                  done ? "bg-emerald-600 text-white" : current ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-600" : "bg-slate-100 text-slate-400"
+                  done ? "bg-accent text-brand-ink" : current ? "bg-brand-soft text-brand-ink ring-2 ring-brand-ink" : "bg-slate-100 text-slate-400"
                 }`}
               >
                 {done ? "✓" : i + 1}
               </span>
-              {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-emerald-600" : "bg-slate-200"}`} />}
+              {i < PIPELINE.length - 1 && <span className={`h-5 w-0.5 ${i < idx ? "bg-accent" : "bg-slate-200"}`} />}
             </div>
             <div className="pb-5">
-              <p className={`text-sm font-medium ${done || current ? "text-slate-900" : "text-slate-400"}`}>{STATUS_LABEL[s] ?? s}</p>
+              <p className={`text-sm font-medium ${done || current ? "text-brand-ink" : "text-slate-400"}`}>{STATUS_LABEL[s] ?? s}</p>
               {current && idx < PIPELINE.length - 1 && (
                 <p className="text-xs text-slate-500">
                   {status === "requested" && "Our team reviews every request before confirming."}
@@ -109,7 +109,7 @@ export default function CustomerBookingPage() {
       <PublicShell>
         <div className="mx-auto max-w-3xl px-4 py-10">
           <Alert>{error}</Alert>
-          <Link href="/bookings" className="mt-4 inline-block text-sm text-emerald-700 underline">Back to my bookings</Link>
+          <Link href="/bookings" className="mt-4 inline-block text-sm text-brand-link underline">Back to my bookings</Link>
         </div>
       </PublicShell>
     );

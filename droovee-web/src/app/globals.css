@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Droovee brand palette — approved 29 Oct 2026
+   Extracted from the approved design, not approximated:
+
+       #001433   brand ink      header, hero, dark cards, headings
+       #0B1220   brand deep     footer bar
+       #052B66   brand link     links, "Explore →", active nav
+       #EEF2FA   brand soft     tinted section backgrounds, icon tiles
+       #FFB400   accent         primary CTA fill, ticks, dot, stars
+       #E6A200   accent hover   derived one step darker for :hover
+       #A9BCD9   on-dark        body copy on navy
+
+   Rules the design fixes:
+     · primary action = amber fill + navy label, on light AND dark surfaces
+     · amber is never text on white (1.78:1) — fills and marks only
+     · links are navy, not amber
+     · neutrals stay stock slate; nothing else enters the page
+   ========================================================================== */
+@theme {
+  --color-brand-ink: #001433;
+  --color-brand-deep: #0b1220;
+  --color-brand-link: #052b66;
+  --color-brand-soft: #eef2fa;
+  --color-accent: #ffb400;
+  --color-accent-hover: #e6a200;
+  --color-on-dark: #a9bcd9;
+}
+
 @layer base {
   :root {
     color-scheme: light;
@@ -12,65 +40,19 @@
 
   body {
     background-color: #f8fafc;
-    color: #0f172a;
+    color: #001433;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
-    background-color: #059669;
-    color: #ffffff;
+    background-color: #ffb400;
+    color: #001433;
   }
 }
 
-/* Subtle modern card glow & backdrop effects */
-.glass-card {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-}
-
+/* One elevation for the whole public site, tinted with the brand ink. */
 .droovee-card-shadow {
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
-}
-
-.droovee-card-shadow-dark {
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.35);
-}
-
-.card-shine {
-  position: relative;
-  overflow: hidden;
-}
-
-.card-shine::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(120deg, transparent 30%, rgba(16, 185, 129, 0.08) 50%, transparent 70%);
-  transform: translateX(-100%);
-  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
-.card-shine:hover::before {
-  transform: translateX(100%);
-}
-
-.droovee-sticky-cta {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  border: 2px solid #34d399;
-  border-radius: 9999px;
-  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.4);
-  transition: all 0.25s ease-out;
-}
-
-.droovee-sticky-cta:hover {
-  filter: brightness(1.08);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(5, 150, 105, 0.5);
+  box-shadow: 0 1px 2px rgba(0, 20, 51, 0.06), 0 8px 24px -12px rgba(0, 20, 51, 0.12);
 }

@@ -70,10 +70,10 @@ export default function HowItWorksPage() {
   return (
     <PublicShell>
       {/* HEADER SECTION */}
-      <section className="bg-slate-900 py-12 text-white sm:py-16">
+      <section className="bg-brand-ink py-12 text-white sm:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="max-w-2xl">
-            <span className="inline-block rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-bold tracking-widest text-emerald-400">
+            <span className="inline-block rounded-full border border-white/20 px-3 py-1 text-xs font-bold tracking-widest text-slate-300">
               STEP-BY-STEP PROCESS
             </span>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
@@ -87,13 +87,13 @@ export default function HowItWorksPage() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/book"
-              className="rounded-xl bg-emerald-500 px-6 py-3 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 sm:text-sm"
+              className="rounded-xl bg-accent px-6 py-3 text-xs font-bold text-brand-ink transition hover:bg-accent-hover sm:text-sm"
             >
               Book a Chauffeur Now →
             </Link>
             <Link
               href="/pricing"
-              className="rounded-xl border border-slate-700 bg-slate-800/80 px-6 py-3 text-xs font-semibold text-white transition hover:bg-slate-700 sm:text-sm"
+              className="rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-xs font-semibold text-white transition hover:bg-white/10 sm:text-sm"
             >
               View Fare Breakdown
             </Link>
@@ -104,8 +104,8 @@ export default function HowItWorksPage() {
       {/* TIMELINE STEPS */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10">
         <div className="text-center">
-          <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">The 6-Step Journey</span>
-          <h2 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
+          <span className="text-xs font-bold uppercase tracking-widest text-brand-link">The 6-Step Journey</span>
+          <h2 className="mt-2 text-2xl font-black text-brand-ink sm:text-3xl">
             Simple, Transparent, and Secure
           </h2>
         </div>
@@ -118,7 +118,7 @@ export default function HowItWorksPage() {
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 font-mono text-sm font-bold text-white shadow-sm">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-ink font-mono text-sm font-bold text-accent shadow-sm">
                     {s.step}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -126,22 +126,22 @@ export default function HowItWorksPage() {
                   </span>
                 </div>
 
-                <h3 className="mt-5 text-lg font-bold text-slate-900">{s.title}</h3>
+                <h3 className="mt-5 text-lg font-bold text-brand-ink">{s.title}</h3>
                 <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">{s.desc}</p>
               </div>
 
               <div className="mt-6 border-t border-slate-100 pt-3">
-                <p className="text-[11px] font-medium text-emerald-700">{s.tip}</p>
+                <p className="text-[11px] font-medium text-brand-link">{s.tip}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* 4-DIGIT CODE EXPLAINER BANNER */}
-        <div className="mt-16 overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 p-8 text-white sm:p-12">
+        <div className="mt-16 overflow-hidden rounded-3xl border border-white/10 bg-brand-ink p-8 text-white sm:p-12">
           <div className="grid items-center gap-8 md:grid-cols-2">
             <div>
-              <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
+              <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-slate-300">
                 Anti-Fraud & Security System
               </span>
               <h3 className="mt-3 text-2xl font-black sm:text-3xl">
@@ -152,21 +152,21 @@ export default function HowItWorksPage() {
               </p>
               <ul className="mt-4 space-y-2 text-xs text-slate-300 sm:text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="font-bold text-emerald-400">1.</span>
+                  <span className="font-bold text-accent">1.</span>
                   <span><strong>Start Code:</strong> You receive an instant 4-digit code. Driver enters it to start the journey and log vehicle odometer.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="font-bold text-emerald-400">2.</span>
+                  <span className="font-bold text-accent">2.</span>
                   <span><strong>End Code:</strong> Only you have the completion code. The billing timer stops the second you share this code.</span>
                 </li>
               </ul>
             </div>
 
             {/* Visual Simulated Mockup */}
-            <div className="rounded-2xl border border-slate-700 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-md">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="rounded-2xl border border-white/15 bg-brand-deep/80 p-6 shadow-2xl backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                   <span className="text-xs font-semibold text-slate-300">Active Ride Verification</span>
                 </div>
                 <span className="font-mono text-xs text-slate-400">#DRV-9082</span>
@@ -175,10 +175,10 @@ export default function HowItWorksPage() {
               <div className="mt-5 text-center">
                 <p className="text-xs text-slate-400">Share this code with your driver at pickup:</p>
                 <div className="mx-auto mt-3 flex justify-center gap-2 font-mono">
-                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xl font-black text-emerald-400">8</span>
-                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xl font-black text-emerald-400">2</span>
-                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xl font-black text-emerald-400">9</span>
-                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xl font-black text-emerald-400">1</span>
+                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-black text-accent">8</span>
+                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-black text-accent">2</span>
+                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-black text-accent">9</span>
+                  <span className="flex h-12 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-xl font-black text-accent">1</span>
                 </div>
                 <p className="mt-3 text-[11px] text-slate-500">Starts vehicle safety cover and time meter.</p>
               </div>
@@ -189,14 +189,14 @@ export default function HowItWorksPage() {
         {/* FREQUENTLY ASKED QUESTIONS */}
         <div className="mt-20">
           <div className="text-center">
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">Got Questions?</span>
-            <h2 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">Frequently Asked Questions</h2>
+            <span className="text-xs font-bold uppercase tracking-widest text-brand-link">Got Questions?</span>
+            <h2 className="mt-2 text-2xl font-black text-brand-ink sm:text-3xl">Frequently Asked Questions</h2>
           </div>
 
           <div className="mx-auto mt-10 max-w-3xl space-y-4">
             {FAQS.map((f, i) => (
               <div key={i} className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-                <h4 className="text-base font-bold text-slate-900">{f.q}</h4>
+                <h4 className="text-base font-bold text-brand-ink">{f.q}</h4>
                 <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">{f.a}</p>
               </div>
             ))}
@@ -217,7 +217,7 @@ export default function HowItWorksPage() {
             </a>
             <Link
               href="/book"
-              className="rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
+              className="rounded-xl bg-accent px-6 py-2.5 text-xs font-bold text-brand-ink shadow-sm transition hover:bg-accent-hover"
             >
               Start Instant Booking →
             </Link>

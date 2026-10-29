@@ -99,10 +99,10 @@ export default function TestimonialsPage() {
   return (
     <PublicShell>
       {/* Header Banner */}
-      <section className="bg-slate-900 py-12 text-white sm:py-16">
+      <section className="bg-brand-ink py-12 text-white sm:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="max-w-2xl">
-            <span className="inline-block rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-bold tracking-widest text-emerald-400">
+            <span className="inline-block rounded-full border border-white/20 px-3 py-1 text-xs font-bold tracking-widest text-slate-300">
               VERIFIED REVIEWS
             </span>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
@@ -114,9 +114,9 @@ export default function TestimonialsPage() {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-slate-800 pt-6 sm:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 sm:grid-cols-4">
             <div>
-              <p className="text-2xl font-black text-emerald-400 sm:text-3xl">4.9 / 5</p>
+              <p className="text-2xl font-black text-accent sm:text-3xl">4.9 / 5</p>
               <p className="text-xs text-slate-400">Average Ride Rating</p>
             </div>
             <div>
@@ -151,7 +151,7 @@ export default function TestimonialsPage() {
               onClick={() => setFilter(tab.id)}
               className={`rounded-full px-4 py-2 text-xs font-bold transition sm:text-sm ${
                 filter === tab.id
-                  ? "bg-emerald-600 text-white shadow-sm"
+                  ? "bg-accent text-brand-ink shadow-sm"
                   : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300"
               }`}
             >
@@ -170,12 +170,12 @@ export default function TestimonialsPage() {
               <div>
                 {/* Rating & Badge */}
                 <div className="flex items-center justify-between">
-                  <div className="flex text-amber-400">
+                  <div className="flex text-brand-ink">
                     {Array.from({ length: r.rating }).map((_, i) => (
                       <span key={i}>★</span>
                     ))}
                   </div>
-                  <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <span className="rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-link">
                     {r.service}
                   </span>
                 </div>
@@ -189,9 +189,9 @@ export default function TestimonialsPage() {
               {/* Author & Car Info */}
               <div className="mt-6 border-t border-slate-100 pt-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-900">{r.name}</p>
+                  <p className="text-sm font-bold text-brand-ink">{r.name}</p>
                   {r.verified && (
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-brand-link">
                       ✓ Verified Ride
                     </span>
                   )}
@@ -207,7 +207,7 @@ export default function TestimonialsPage() {
         </div>
 
         {/* Bottom Booking Prompt */}
-        <div className="mt-16 rounded-3xl bg-slate-900 p-8 text-center text-white sm:p-12">
+        <div className="mt-16 rounded-3xl bg-brand-ink p-8 text-center text-white sm:p-12">
           <h2 className="text-2xl font-bold sm:text-3xl">Experience the Droovee difference</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm text-slate-300">
             Book your verified driver in under 30 seconds. Your car, our professional chauffeur.
@@ -215,7 +215,7 @@ export default function TestimonialsPage() {
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               href="/book"
-              className="rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-400"
+              className="rounded-xl bg-accent px-6 py-3 text-sm font-bold text-brand-ink hover:bg-accent-hover"
             >
               Book a Chauffeur Now →
             </Link>

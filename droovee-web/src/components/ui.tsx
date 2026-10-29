@@ -9,7 +9,7 @@ export function Button({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
   const styles = {
-    primary: "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600",
+    primary: "bg-accent text-brand-ink hover:bg-accent-hover focus-visible:ring-accent",
     secondary: "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
     danger: "bg-rose-600 text-white hover:bg-rose-700",
     ghost: "text-slate-700 hover:bg-slate-100",
@@ -25,7 +25,7 @@ export function Button({
 }
 
 export function LinkButton({ href, children, variant = "primary" }: { href: string; children: ReactNode; variant?: "primary" | "secondary" }) {
-  const styles = variant === "primary" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50";
+  const styles = variant === "primary" ? "bg-accent text-brand-ink hover:bg-accent-hover" : "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50";
   return (
     <Link href={href} className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition ${styles}`}>
       {children}
@@ -61,7 +61,7 @@ export function Field({ label, error, hint, children }: { label: string; error?:
 }
 
 const inputCls =
-  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:bg-slate-100";
+  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-ink/20 disabled:bg-slate-100";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
   const { invalid, className = "", ...rest } = props;

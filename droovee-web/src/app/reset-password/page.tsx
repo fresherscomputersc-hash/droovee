@@ -42,7 +42,7 @@ function ResetForm() {
       <div className="mx-auto max-w-md px-4 py-16">
         <Card>
           <Alert>This reset link is incomplete. Request a new one.</Alert>
-          <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="font-medium text-emerald-700 hover:underline">Request a new link</Link></p>
+          <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="font-medium text-brand-link hover:underline">Request a new link</Link></p>
         </Card>
       </div>
     );
@@ -55,7 +55,7 @@ function ResetForm() {
         {done ? (
           <div className="mt-6 space-y-4">
             <Alert tone="success">Password updated. Please sign in with your new password.</Alert>
-            <p className="text-center text-sm"><Link href="/login" className="font-medium text-emerald-700 hover:underline">Sign in</Link></p>
+            <p className="text-center text-sm"><Link href="/login" className="font-medium text-brand-link hover:underline">Sign in</Link></p>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-6 space-y-4" noValidate>

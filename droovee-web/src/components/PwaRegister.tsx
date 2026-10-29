@@ -72,10 +72,10 @@ export function PwaRegister() {
     <div
       role="complementary"
       aria-label="Install Droovee"
-      className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-4 text-white shadow-2xl sm:bottom-6 sm:left-auto sm:right-6"
+      className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-2xl border border-white/20 bg-brand-ink/95 p-4 text-white shadow-2xl sm:bottom-6 sm:left-auto sm:right-6"
     >
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 font-bold text-white">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent font-bold text-brand-ink">
           D
         </span>
         <div className="flex-1 min-w-0">
@@ -91,7 +91,7 @@ export function PwaRegister() {
           </button>
           <button
             onClick={handleInstall}
-            className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 shadow-sm shadow-emerald-500/20"
+            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-brand-ink hover:bg-accent-hover shadow-sm shadow-accent/25"
           >
             Install
           </button>
