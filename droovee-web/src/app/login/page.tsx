@@ -138,7 +138,13 @@ function LoginForm() {
           </p>
         </form>
         <p className="mt-6 text-center text-sm text-slate-600">
-          New to Droovee? <Link href="/register" className="font-medium text-brand-link hover:underline">Create an account</Link>
+          New to Droovee?{" "}
+          <Link
+            href={`/register?next=${encodeURIComponent(next)}`}
+            className="font-medium text-brand-link hover:underline"
+          >
+            Create an account
+          </Link>
         </p>
       </Card>
     </div>
