@@ -72,11 +72,11 @@ export function Hero() {
           style={{ animationDelay: "280ms" }}
         >
           <div className="px-4 py-4 sm:py-0">
-            <p className="text-3xl font-extrabold text-white">500+</p>
+            <p className="text-3xl font-extrabold text-white">50</p>
             <p className="mt-1 text-xs font-medium text-slate-400">Verified Drivers</p>
           </div>
           <div className="px-4 py-4 sm:py-0">
-            <p className="text-3xl font-extrabold text-white">10k+</p>
+            <p className="text-3xl font-extrabold text-white">1K+</p>
             <p className="mt-1 text-xs font-medium text-slate-400">Happy Customers</p>
           </div>
           <div className="px-4 py-4 sm:py-0">
