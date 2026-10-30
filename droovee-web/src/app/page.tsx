@@ -6,44 +6,50 @@ import { CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/cont
 
 const TRUST = [
   {
-    title: "Police-verified drivers",
-    text: "Background-checked, trained and uniformed chauffeurs for your own car.",
+    title: "Police Verified Drivers",
+    text: "Aadhaar, licence and police verification before assignment.",
     icon: (
       <>
-        <path d="M4.75 12.9 9.6 17.6 19.25 7.1" strokeWidth={2.4} />
+        <path d="M12 3.25 19 6v5.6c0 4.2-2.9 7.6-7 9.15-4.1-1.55-7-4.95-7-9.15V6l7-2.75Z" />
+        <path d="m9.1 12 2.05 2.05 3.75-4" />
       </>
     ),
   },
   {
-    title: "Damage accountability",
-    text: "If your car is damaged while our driver is driving, it is our direct responsibility.",
+    title: "Experienced Professional",
+    text: "Trained, uniformed chauffeurs who know the city.",
     icon: (
       <>
-        <path d="M4.75 15.75V12.6l1.72-4.24A1.6 1.6 0 0 1 7.95 7.4h8.1a1.6 1.6 0 0 1 1.48.96l1.72 4.24v3.15" />
-        <path d="M4.75 12.6h14.5" />
-        <circle cx="7.6" cy="16.9" r="1.4" />
-        <circle cx="16.4" cy="16.9" r="1.4" />
+        <circle cx="12" cy="7.2" r="3.1" />
+        <path d="M5.5 20.3v-1.1a6.5 6.5 0 0 1 13 0v1.1" />
       </>
     ),
   },
   {
-    title: "No surge pricing",
-    text: "Clear hourly and outstation rates. No rain, rush-hour or holiday markups.",
+    title: "Premium Service",
+    text: "A professional driver for your own car, every trip.",
     icon: (
       <>
-        <circle cx="8.2" cy="8.2" r="2.4" />
-        <circle cx="15.8" cy="15.8" r="2.4" />
-        <path d="M18.4 5.6 5.6 18.4" />
+        <path d="m12 3.6 2.55 5.2 5.75.83-4.15 4.05.98 5.72L12 16.7l-5.13 2.7.98-5.72L3.7 9.63l5.75-.83L12 3.6Z" />
       </>
     ),
   },
   {
-    title: "Live trip management",
-    text: "Track your driver from pickup to drop, with live status and ETA updates.",
+    title: "Affordable Price",
+    text: "Clear hourly and outstation rates, no hidden charges.",
     icon: (
       <>
-        <path d="M12 20.75s6.25-5.2 6.25-10.15a6.25 6.25 0 1 0-12.5 0C5.75 15.55 12 20.75 12 20.75Z" />
-        <circle cx="12" cy="10.4" r="2.2" />
+        <path d="M20.6 13.1 13.1 20.6a2 2 0 0 1-2.83 0L3.4 13.73V3.4h10.33l6.87 6.87a2 2 0 0 1 0 2.83Z" />
+        <circle cx="7.9" cy="7.9" r="1.35" />
+      </>
+    ),
+  },
+  {
+    title: "Instant Booking",
+    text: "Book online in minutes. No app download needed.",
+    icon: (
+      <>
+        <path d="M13.3 2.8 5.5 13.4h5.2l-.8 7.8 7.8-10.6h-5.2l.8-7.8Z" />
       </>
     ),
   },
@@ -51,24 +57,29 @@ const TRUST = [
 
 const SERVICES = [
   {
-    title: "Hourly & city",
+    title: "City",
     desc: "Shopping, meetings, hospital visits and daily errands across Bhubaneswar.",
-    href: "/services/hourly",
+    href: "/city",
   },
   {
     title: "Outstation",
     desc: "One-way or round-trip drivers to Puri, Cuttack, Konark and beyond.",
-    href: "/services/outstation_one_way",
+    href: "/outstation",
   },
   {
-    title: "Airport & station",
+    title: "Airport Transfer",
     desc: "Punctual pickup and drop at Biju Patnaik Airport, railway and bus stations.",
-    href: "/services/airport_pickup_drop",
+    href: "/airport-transfer",
   },
   {
-    title: "Monthly & corporate",
-    desc: "Dedicated daily commute drivers for offices, hospitals and institutions.",
-    href: "/packages",
+    title: "Monthly",
+    desc: "A dedicated driver for your daily commute, with one monthly bill.",
+    href: "/monthly",
+  },
+  {
+    title: "Corporate",
+    desc: "Daily commute drivers for offices, hospitals and institutions.",
+    href: "/corporate",
   },
 ];
 
@@ -146,13 +157,13 @@ export default function Home() {
 
       {/* TRUST STRIP */}
       <section className="border-b border-slate-200 bg-white py-10">
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl gap-4 px-4 sm:grid-cols-2 lg:grid-cols-5">
           {TRUST.map((t) => (
             <div
               key={t.title}
-              className="droovee-card-shadow flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-5"
+              className="droovee-card-shadow flex items-start gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-4"
             >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -182,13 +193,13 @@ export default function Home() {
             <span className="inline-flex rounded-full border border-slate-200 bg-white px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
               Trip options
             </span>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-brand-ink sm:text-4xl">One driver. Your car. Your plan.</h2>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-brand-ink sm:text-4xl">Our driver. Your car. Your plan.</h2>
             <p className="mt-3 text-base leading-relaxed text-slate-600">
               Hourly city trips, outstation drives, airport transfers and monthly commutes — all with verified chauffeurs.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
             {SERVICES.map((s) => (
               <Link
                 key={s.title}

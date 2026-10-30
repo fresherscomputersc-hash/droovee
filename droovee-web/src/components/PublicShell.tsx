@@ -5,7 +5,6 @@ import { ReactNode, useEffect, useState } from "react";
 import { getSession, setSession, Session } from "@/lib/session";
 import { api, setAccessToken } from "@/lib/api";
 import { CONTACT_ADDRESS, CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
-import { t, toggleLang, useLang } from "@/lib/i18n";
 import { PricingGateProvider, usePricingGate } from "@/components/PricingGate";
 
 function PricingNavButton({
@@ -35,7 +34,6 @@ function PricingNavButton({
 export function PublicShell({ children }: { children: ReactNode }) {
   const [session, setS] = useState<Session | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const lang = useLang();
 
   useEffect(() => {
     setS(getSession());
@@ -82,17 +80,8 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 Testimonials
               </Link>
               <Link href="/track" className="text-xs font-semibold text-slate-300 transition hover:text-white">
-                {t("track", lang)}
+                Track booking
               </Link>
-
-              {/* Language Pill */}
-              <button
-                onClick={toggleLang}
-                className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:border-white/40 hover:text-white"
-                aria-label="Switch language"
-              >
-                {lang === "en" ? "ଓଡ଼ିଆ" : "EN"}
-              </button>
 
               {session?.kind === "customer" ? (
                 <>
@@ -203,17 +192,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                   Outstation Packages
                 </Link>
 
-                <div className="flex items-center justify-between border-t border-white/10 pt-3">
-                  <span className="text-xs text-slate-400">Language:</span>
-                  <button
-                    onClick={toggleLang}
-                    className="rounded-md border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200"
-                  >
-                    {lang === "en" ? "ଓଡ଼ିଆରେ ପଢ଼ନ୍ତୁ" : "Switch to English"}
-                  </button>
-                </div>
-
-                <div className="pt-2">
+                <div className="border-t border-white/10 pt-3">
                   {session?.kind === "customer" ? (
                     <button
                       onClick={signOut}
@@ -305,11 +284,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-brand-ink">Trip Options</p>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                <li><Link href="/services/hourly" className="hover:text-brand-link transition">Hourly Driver</Link></li>
-                <li><Link href="/services/outstation_one_way" className="hover:text-brand-link transition">One-Way Outstation</Link></li>
-                <li><Link href="/services/outstation_round_trip" className="hover:text-brand-link transition">Round-Trip Outstation</Link></li>
-                <li><Link href="/services/airport_pickup_drop" className="hover:text-brand-link transition">Airport Pickup & Drop</Link></li>
-                <li><Link href="/services/monthly_office" className="hover:text-brand-link transition">Office Pickup & Drop</Link></li>
+                <li><Link href="/city" className="hover:text-brand-link transition">City Driver</Link></li>
+                <li><Link href="/outstation" className="hover:text-brand-link transition">Outstation Driver</Link></li>
+                <li><Link href="/airport-transfer" className="hover:text-brand-link transition">Airport Transfer</Link></li>
+                <li><Link href="/monthly" className="hover:text-brand-link transition">Monthly Driver</Link></li>
+                <li><Link href="/corporate" className="hover:text-brand-link transition">Corporate Drivers</Link></li>
                 <li><Link href="/packages" className="hover:text-brand-link transition">Fixed-Price Packages</Link></li>
               </ul>
             </div>
@@ -377,8 +356,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
           <div className="border-t border-slate-200 bg-white">
             <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 text-xs text-slate-400 lg:px-10">
-              <p>© 2026 Droovee Technologies. All rights reserved.</p>
-              <p className="text-slate-500">Trained & Police-Verified Drivers for Your Own Car</p>
+              <p>© 2026 Ruby Mobility Services. All rights reserved.</p>
             </div>
           </div>
         </footer>
