@@ -559,12 +559,13 @@ export default function DriverDashboardPage() {
 
                         {job.status === "in_progress" && !job.tripEnded && (
                           <Button
+                            variant="blue"
                             onClick={() => {
                               setCodePromptJob({ id: job.id, action: "end", bookingNumber: job.bookingNumber });
                               setInputCode("");
                             }}
                             disabled={busy}
-                            className="w-full bg-slate-900 hover:bg-slate-800"
+                            className="w-full shadow-md"
                           >
                             End trip (enter customer END code)
                           </Button>
@@ -728,6 +729,7 @@ export default function DriverDashboardPage() {
                   Cancel
                 </button>
                 <Button
+                  variant={codePromptJob.action === "end" ? "blue" : "primary"}
                   onClick={() => performAction(codePromptJob.id, codePromptJob.action, { code: inputCode })}
                   disabled={busy || inputCode.length !== 4}
                 >

@@ -523,6 +523,8 @@ adminRouter.post("/bookings/:id/driver-link", requirePermission("bookings:assign
   const secrets = issueDriverSecrets();
   b.driverTokenHash = secrets.driverTokenHash as never;
   b.shareToken = secrets.shareToken as never;
+  b.tripCodeStart = secrets.tripCodeStart as never;
+  b.tripCodeEnd = secrets.tripCodeEnd as never;
   b.tripCodeStartHash = secrets.tripCodeStartHash as never;
   b.tripCodeEndHash = secrets.tripCodeEndHash as never;
   b.version += 1;

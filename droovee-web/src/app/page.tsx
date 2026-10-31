@@ -132,10 +132,6 @@ const FAQS = [
     a: "Yes. Every driver undergoes Aadhaar and driving-licence checks plus local police verification before being assigned.",
   },
   {
-    q: "What happens if my car is damaged while the driver is driving?",
-    a: "Vehicle damage while our driver is driving is our direct operational responsibility. Tell our dispatch team immediately so we can record and resolve it.",
-  },
-  {
     q: "Who covers fuel, tolls and parking?",
     a: "Fuel, tolls and parking are paid by you. For outstation trips, you also provide or reimburse the driver's food and overnight stay.",
   },

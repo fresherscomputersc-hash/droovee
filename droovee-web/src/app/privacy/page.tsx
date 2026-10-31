@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           <Card>
             <h2 className="text-lg font-bold text-slate-900">1. Data Fiduciary & Regulatory Framework</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              This Privacy Policy is published by <strong>Ruby Mobility Services</strong>, operating the platform <strong>Droovee</strong> (&ldquo;Droovee&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), having its operational headquarters in Bhubaneswar, Odisha, India. We act as the <strong>Data Fiduciary</strong> in terms of <strong>Section 2(i) of the Digital Personal Data Protection Act, 2023 (&ldquo;DPDP Act&rdquo;)</strong>.
+              This Privacy Policy is published by <strong>DROOVEE MOBILITY PVT. LTD.</strong>, operating the platform <strong>Droovee</strong> (&ldquo;Droovee&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), having its operational headquarters in Bhubaneswar, Odisha, India. We act as the <strong>Data Fiduciary</strong> in terms of <strong>Section 2(i) of the Digital Personal Data Protection Act, 2023 (&ldquo;DPDP Act&rdquo;)</strong>.
             </p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               This policy governs the collection, processing, storage, and protection of digital personal data of customers (&ldquo;Data Principals&rdquo;) accessing our website, web application, booking interfaces, and associated mobility dispatch services.
@@ -180,7 +180,7 @@ export default function PrivacyPage() {
             </p>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-700 space-y-1">
               <p><strong>Designation:</strong> Data Protection & Grievance Redressal Officer</p>
-              <p><strong>Entity:</strong> Ruby Mobility Services (Droovee)</p>
+              <p><strong>Entity:</strong> DROOVEE MOBILITY PVT. LTD. (Droovee)</p>
               <p><strong>Email:</strong> <a href="mailto:support@droovee.in" className="text-brand-link font-medium underline">support@droovee.in</a></p>
               <p><strong>Phone / WhatsApp:</strong> <a href="tel:+918114994367" className="text-brand-link font-medium">+91 81149 94367</a></p>
               <p><strong>Postal Address:</strong> Patia / Infocity Road, Bhubaneswar, Odisha 751024, India</p>
@@ -193,7 +193,7 @@ export default function PrivacyPage() {
 
         {/* Footer Navigation Link */}
         <div className="flex items-center justify-between border-t border-slate-200 pt-6 text-xs text-slate-500">
-          <p>© 2026 Ruby Mobility Services. All rights reserved.</p>
+          <p>© 2026 DROOVEE MOBILITY PVT. LTD. All rights reserved.</p>
           <Link href="/terms" className="font-semibold text-brand-link hover:underline">
             View Terms of Service →
           </Link>

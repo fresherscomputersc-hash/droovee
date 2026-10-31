@@ -54,7 +54,7 @@ export default function TermsPage() {
           <Card>
             <h2 className="text-lg font-bold text-slate-900">1. Acceptance of Terms & Platform Scope</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              These Terms of Service (&ldquo;Terms&rdquo;) constitute a legally binding agreement between you (&ldquo;Customer&rdquo;, &ldquo;User&rdquo;, or &ldquo;You&rdquo;) and <strong>Ruby Mobility Services</strong> (&ldquo;Droovee&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By accessing our website, registering an account, or requesting a driver, you agree to be bound by these Terms and our DPDP Act-compliant <Link href="/privacy" className="text-brand-link font-medium underline">Privacy Policy</Link>.
+              These Terms of Service (&ldquo;Terms&rdquo;) constitute a legally binding agreement between you (&ldquo;Customer&rdquo;, &ldquo;User&rdquo;, or &ldquo;You&rdquo;) and <strong>DROOVEE MOBILITY PVT. LTD.</strong> (&ldquo;Droovee&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By accessing our website, registering an account, or requesting a driver, you agree to be bound by these Terms and our DPDP Act-compliant <Link href="/privacy" className="text-brand-link font-medium underline">Privacy Policy</Link>.
             </p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               <strong>Service Nature:</strong> Droovee is a specialized mobility management platform that dispatches background-checked, uniformed chauffeurs to drive <em>your personal, commercial, or fleet vehicle</em>. Droovee does not provide vehicle rentals, taxi cabs, or passenger vehicles.
@@ -161,7 +161,7 @@ export default function TermsPage() {
               For any questions regarding these Terms or support with your active bookings, contact our team:
             </p>
             <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-700 space-y-1">
-              <p><strong>Support & Dispatch Desk:</strong> Ruby Mobility Services (Droovee)</p>
+              <p><strong>Support & Dispatch Desk:</strong> DROOVEE MOBILITY PVT. LTD. (Droovee)</p>
               <p><strong>Email:</strong> <a href="mailto:support@droovee.in" className="text-brand-link font-medium underline">support@droovee.in</a></p>
               <p><strong>Phone / WhatsApp:</strong> <a href="tel:+918114994367" className="text-brand-link font-medium">+91 81149 94367</a></p>
               <p><strong>Location:</strong> Bhubaneswar, Odisha, India · Open 24×7</p>
@@ -171,7 +171,7 @@ export default function TermsPage() {
 
         {/* Footer Navigation Link */}
         <div className="flex items-center justify-between border-t border-slate-200 pt-6 text-xs text-slate-500">
-          <p>© 2026 Ruby Mobility Services. All rights reserved.</p>
+          <p>© 2026 DROOVEE MOBILITY PVT. LTD. All rights reserved.</p>
           <Link href="/privacy" className="font-semibold text-brand-link hover:underline">
             View Privacy Policy (DPDP Act) →
           </Link>

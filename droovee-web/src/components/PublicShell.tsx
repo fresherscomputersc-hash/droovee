@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { getSession, setSession, Session } from "@/lib/session";
 import { api, setAccessToken } from "@/lib/api";
@@ -32,6 +33,8 @@ function PricingNavButton({
 }
 
 export function PublicShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isLandingPage = pathname === "/";
   const [session, setS] = useState<Session | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -51,7 +54,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
   return (
     <PricingGateProvider>
-      <div className="flex min-h-screen flex-col bg-slate-50 selection:bg-accent selection:text-brand-ink pb-24 md:pb-0">
+      <div className={`flex min-h-screen flex-col bg-slate-50 selection:bg-accent selection:text-brand-ink ${isLandingPage ? "pb-24 md:pb-0" : "pb-0"}`}>
         {/* HEADER / NAVBAR — brand ink */}
         <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-ink">
           <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
@@ -218,26 +221,28 @@ export function PublicShell({ children }: { children: ReactNode }) {
         {/* BODY */}
         <main className="flex-1">{children}</main>
 
-        {/* Sticky Bottom Booking Bar on Mobile */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-brand-ink p-3 md:hidden">
-          <div className="mx-auto flex max-w-md items-center justify-between gap-3">
-            <Link
-              href="/book"
-              className="flex-1 rounded-xl bg-accent py-3 text-center text-sm font-extrabold text-brand-ink shadow-lg hover:bg-accent-hover transition"
-            >
-              Book a Driver Now
-            </Link>
-            <a
-              href={CONTACT_TEL}
-              aria-label="Call Droovee"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                <path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-            </a>
+        {/* Sticky Bottom Booking Bar on Mobile (only on landing page) */}
+        {isLandingPage && (
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-brand-ink p-3 md:hidden">
+            <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+              <Link
+                href="/book"
+                className="flex-1 rounded-xl bg-accent py-3 text-center text-sm font-extrabold text-brand-ink shadow-lg hover:bg-accent-hover transition"
+              >
+                Book a Driver Now
+              </Link>
+              <a
+                href={CONTACT_TEL}
+                aria-label="Call Droovee"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                  <path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                </svg>
+              </a>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Floating WhatsApp Widget on Desktop */}
         <div className="hidden md:flex fixed bottom-6 right-6 z-40 flex-col gap-2.5">
@@ -356,7 +361,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
           <div className="border-t border-slate-200 bg-white">
             <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 text-xs text-slate-400 lg:px-10">
-              <p>© 2026 Ruby Mobility Services. All rights reserved.</p>
+              <p>© 2026 DROOVEE MOBILITY PVT. LTD. All rights reserved.</p>
             </div>
           </div>
         </footer>

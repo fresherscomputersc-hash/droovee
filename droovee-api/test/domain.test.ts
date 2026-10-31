@@ -115,3 +115,31 @@ test("bookingEnd uses duration or explicit end", () => {
   const e = new Date("2026-10-12T10:00Z");
   assert.equal(bookingEnd(s, 4, e).toISOString(), e.toISOString());
 });
+
+test("customerView includes startOtp and endOtp when driver is assigned or in progress", async () => {
+  const { customerView } = await import("../src/routes/bookings");
+  const assigned = {
+    _id: "64f1a2b3c4d5e6f7a8b9c0d1",
+    bookingNumber: "DRV-12345678",
+    serviceType: "hourly",
+    status: "driver_assigned",
+    tripCodeStart: "1234",
+    tripCodeEnd: "5678",
+  };
+  const viewAssigned = customerView(assigned, null);
+  assert.equal(viewAssigned.startOtp, "1234");
+  assert.equal(viewAssigned.endOtp, "5678");
+
+  const requested = {
+    _id: "64f1a2b3c4d5e6f7a8b9c0d2",
+    bookingNumber: "DRV-12345679",
+    serviceType: "hourly",
+    status: "requested",
+    tripCodeStart: "1234",
+    tripCodeEnd: "5678",
+  };
+  const viewRequested = customerView(requested, null);
+  assert.equal(viewRequested.startOtp, undefined);
+  assert.equal(viewRequested.endOtp, undefined);
+});
+

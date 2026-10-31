@@ -9,6 +9,7 @@ import { getSession } from "@/lib/session";
 import { dateTime, money, SERVICE_LABEL, STATUS_LABEL } from "@/lib/format";
 import { DriverCard, EmergencyCard, HelpOnWhatsApp } from "@/components/Trust";
 import { RateTrip, ShareLink } from "@/components/Rate";
+import { RideOtpCard } from "@/components/RideOtpCard";
 
 const PIPELINE = ["requested", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed"] as const;
 const DEAD_END = ["cancelled", "rejected", "customer_no_show"];
@@ -131,6 +132,8 @@ export default function CustomerBookingPage() {
           <StatusBadge status={b.status} />
         </div>
         {notice && <Alert tone="success">{notice}</Alert>}
+
+        <RideOtpCard b={b} />
 
         <Card>
           <h2 className="font-semibold">Where's my booking?</h2>

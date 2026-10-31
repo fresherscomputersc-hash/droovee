@@ -205,6 +205,8 @@ const bookingSchema = new Schema(
     driverTokenHash: { type: String, select: false },
     shareToken: { type: String, index: true, sparse: true, unique: true },
     /** 4-digit codes: customer shares with driver to start/end the trip. */
+    tripCodeStart: { type: String },
+    tripCodeEnd: { type: String },
     tripCodeStartHash: { type: String, select: false },
     tripCodeEndHash: { type: String, select: false },
     /** Pre-trip car photos (dispute protection). */

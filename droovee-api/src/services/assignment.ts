@@ -159,6 +159,8 @@ export async function assignDriver(input: AssignInput): Promise<AssignResult> {
       const secrets = issueDriverSecrets();
       booking.driverTokenHash = secrets.driverTokenHash as never;
       booking.shareToken = secrets.shareToken as never;
+      booking.tripCodeStart = secrets.tripCodeStart as never;
+      booking.tripCodeEnd = secrets.tripCodeEnd as never;
       booking.tripCodeStartHash = secrets.tripCodeStartHash as never;
       booking.tripCodeEndHash = secrets.tripCodeEndHash as never;
       await booking.save({ session });

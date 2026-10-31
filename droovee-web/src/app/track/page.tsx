@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { dateTime, money, SERVICE_LABEL, STATUS_LABEL } from "@/lib/format";
 import { DriverCard, EmergencyCard, HelpOnWhatsApp } from "@/components/Trust";
 import { ShareLink } from "@/components/Rate";
+import { RideOtpCard } from "@/components/RideOtpCard";
 
 const PIPELINE = ["requested", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed"] as const;
 
@@ -31,6 +32,7 @@ function Timeline({ status }: { status: string }) {
 function BookingCard({ b }: { b: any }) {
   return (
     <div className="space-y-6">
+      <RideOtpCard b={b} />
       <Card>
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-mono text-xl font-semibold">{b.bookingNumber}</h2>

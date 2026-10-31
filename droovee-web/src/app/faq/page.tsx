@@ -4,7 +4,6 @@ import { Card } from "@/components/ui";
 const FAQS = [
   { q: "Who pays for tolls, parking and fuel?", a: "You (the customer) pay tolls, parking and fuel on all trips, including outstation trips." },
   { q: "Who pays for the driver's food, stay and return travel?", a: "The customer pays for the driver's food, stay and return travel on outstation trips." },
-  { q: "What if my car is damaged while the driver is driving?", a: "Damage to your vehicle while our driver is driving is the driver's responsibility. Tell our team immediately so we can record it and resolve it." },
   { q: "What if my driver is late?", a: "Call or WhatsApp us on the number on this site and we'll sort it out — a replacement driver or a revised plan. Waiting charges, if any, follow our cancellation policy." },
   { q: "Do I need an account to book?", a: "Yes. Sign in or create a free account in under a minute. Your trips, invoices and support history stay in one place." },
   { q: "How do I track my booking?", a: "Open Track booking and enter your booking ID or your mobile number. No password needed for tracking." },

@@ -7,12 +7,13 @@ export function Button({
   variant = "primary",
   className = "",
   ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" | "blue" }) {
   const styles = {
     primary: "bg-accent text-brand-ink hover:bg-accent-hover focus-visible:ring-accent",
     secondary: "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
     danger: "bg-rose-600 text-white hover:bg-rose-700",
     ghost: "text-slate-700 hover:bg-slate-100",
+    blue: "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 shadow-sm font-semibold",
   }[variant];
   return (
     <button
