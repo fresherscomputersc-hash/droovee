@@ -132,6 +132,17 @@ function LoginForm() {
               <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
             </div>
           )}
+          <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-500 border border-slate-200/80">
+            By signing in, you acknowledge Droovee&apos;s{" "}
+            <Link href="/privacy" className="font-semibold text-brand-ink underline" target="_blank">
+              Privacy Policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" className="font-semibold text-brand-ink underline" target="_blank">
+              Terms
+            </Link>{" "}
+            under the DPDP Act, 2023. We keep your contact data confidential and never share it with third parties.
+          </div>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
           <p className="text-right text-sm">
             <Link href="/forgot-password" className="font-medium text-brand-link hover:underline">Forgot password?</Link>

@@ -91,13 +91,13 @@ function emailLayout(title: string, bodyContent: string): string {
           <tr>
             <td style="background-color: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
               <p style="margin: 0; font-size: 12px; color: #64748B; font-weight: 600;">
-                Droovee Technologies Private Limited
+                DROOVEE MOBILITY PVT. LTD.
               </p>
               <p style="margin: 4px 0 0; font-size: 11px; color: #94A3B8;">
                 Doorstep Driver Dispatch Hub · Bhubaneswar, Odisha
               </p>
               <p style="margin: 12px 0 0; font-size: 11px; color: #64748B;">
-                Need assistance? Call our 24×7 Helpline: <strong style="color: #0F172A;">+91 94390 00000</strong> or email <a href="mailto:support@droovee.in" style="color: #059669; text-decoration: none;">support@droovee.in</a>
+                Need assistance? Call our 24×7 Helpline: <strong style="color: #0F172A;">+91 81149 94367</strong> or email <a href="mailto:droovee.admin@gmail.com" style="color: #059669; text-decoration: none;">droovee.admin@gmail.com</a>
               </p>
             </td>
           </tr>

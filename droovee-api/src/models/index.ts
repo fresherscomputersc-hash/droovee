@@ -20,6 +20,11 @@ const customerSchema = new Schema(
     referralCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     /** Bumped on disable/role/password changes: outstanding access tokens carry the old version and stop working. */
     tokenVersion: { type: Number, default: 0 },
+    /** Last successful login timestamp. */
+    lastLoginAt: { type: Date },
+    /** DPDP Act 2023: customer consent for service updates and direct marketing communications from Droovee. */
+    marketingConsent: { type: Boolean, default: true },
+    marketingConsentAt: { type: Date },
   },
   opts,
 );
@@ -200,6 +205,8 @@ const bookingSchema = new Schema(
     driverTokenHash: { type: String, select: false },
     shareToken: { type: String, index: true, sparse: true, unique: true },
     /** 4-digit codes: customer shares with driver to start/end the trip. */
+    tripCodeStart: { type: String },
+    tripCodeEnd: { type: String },
     tripCodeStartHash: { type: String, select: false },
     tripCodeEndHash: { type: String, select: false },
     /** Pre-trip car photos (dispute protection). */

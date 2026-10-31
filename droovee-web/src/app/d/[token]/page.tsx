@@ -125,7 +125,7 @@ export default function DriverJobPage() {
                     <Input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={4} placeholder="4 digits" />
                   </Field>
                 </div>
-                <div className="flex items-end"><Button onClick={() => act("/end", { code }, "Trip ended. Our team completes the fare.")} disabled={busy || code.length !== 4}>End trip</Button></div>
+                <div className="flex items-end"><Button variant="blue" onClick={() => act("/end", { code }, "Trip ended. Our team completes the fare.")} disabled={busy || code.length !== 4}>End trip</Button></div>
               </div>
             )}
             {job.tripEnded && <Alert tone="success">Trip ended. Our team will complete the fare with the customer.</Alert>}

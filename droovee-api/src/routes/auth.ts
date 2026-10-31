@@ -78,6 +78,9 @@ authRouter.post("/customer/register", validate(registerSchema), async (req, res)
     email: b.email,
     passwordHash,
     phoneVerified: config.otpEnabled,
+    lastLoginAt: new Date(),
+    marketingConsent: true,
+    marketingConsentAt: new Date(),
   });
   await ensureReferralCode(customer._id as Types.ObjectId);
   if (customer.email) {
@@ -99,6 +102,9 @@ authRouter.post("/customer/login", loginLimiter(), validate(passwordLoginSchema)
   const hash = c?.passwordHash ?? "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv";
   const ok = await bcrypt.compare(b.password, hash);
   if (!c || !c.passwordHash || !ok || !c.active) throw new AppError(401, "UNAUTHENTICATED", "Phone number or password is incorrect.");
+  c.lastLoginAt = new Date();
+  await c.save();
+  await audit({ actorId: String(c._id), actorKind: "customer", action: "customer.login", entityType: "Customer", entityId: String(c._id) });
   const session = await sessionFor(String(c._id), "customer", undefined, c.tokenVersion ?? 0);
   setAuthCookies(res, session.accessToken, session.refreshToken);
   res.json(session);
@@ -113,7 +119,9 @@ authRouter.post("/customer/login-otp", loginLimiter(), validate(otpLoginSchema),
   const c = await CustomerModel.findOne({ phone: b.phone });
   if (!c || !c.active) throw new AppError(404, "NOT_FOUND", "No account for this number. Please register.");
   c.phoneVerified = true;
+  c.lastLoginAt = new Date();
   await c.save();
+  await audit({ actorId: String(c._id), actorKind: "customer", action: "customer.login_otp", entityType: "Customer", entityId: String(c._id) });
   const session = await sessionFor(String(c._id), "customer", undefined, c.tokenVersion ?? 0);
   setAuthCookies(res, session.accessToken, session.refreshToken);
   res.json(session);

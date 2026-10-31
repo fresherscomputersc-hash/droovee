@@ -133,6 +133,17 @@ function RegisterForm() {
           <Field label="Confirm password" error={fields.confirm}>
             <Input type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" invalid={!!fields.confirm} required />
           </Field>
+          <div className="rounded-lg bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 border border-slate-200/80">
+            By creating an account, you agree to Droovee’s{" "}
+            <Link href="/terms" className="font-semibold text-brand-ink underline" target="_blank">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="font-semibold text-brand-ink underline" target="_blank">
+              Privacy Policy
+            </Link>{" "}
+            under India’s DPDP Act, 2023. You consent to Droovee using your mobile number and email for booking notifications and direct offers. We strictly never sell or share your data with any third party.
+          </div>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Creating account…" : "Create account"}</Button>
         </form>
         <p className="mt-6 text-center text-sm text-slate-600">

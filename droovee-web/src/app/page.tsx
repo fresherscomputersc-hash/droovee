@@ -4,53 +4,66 @@ import { Hero } from "@/components/Hero";
 import { PricingCta } from "@/components/PricingCta";
 import { CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
 
-const TRUST = [
+const WHY_DROOVEE = [
   {
-    title: "Police Verified Drivers",
-    text: "Aadhaar, licence and police verification before assignment.",
+    title: "100% Police & Identity Verified",
+    desc: "Every chauffeur undergoes stringent Aadhaar, driving licence, and local police verification before ever taking the wheel of your car. Complete safety for you and your family.",
     icon: (
-      <>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
         <path d="M12 3.25 19 6v5.6c0 4.2-2.9 7.6-7 9.15-4.1-1.55-7-4.95-7-9.15V6l7-2.75Z" />
         <path d="m9.1 12 2.05 2.05 3.75-4" />
-      </>
+      </svg>
     ),
   },
   {
-    title: "Experienced Professional",
-    text: "Trained, uniformed chauffeurs who know the city.",
+    title: "Travel in Your Own Car's Comfort",
+    desc: "Skip smelly, crowded cabs. Relax, make business calls, or read in the hygiene, familiarity, and privacy of your personal vehicle while an expert chauffeur drives.",
     icon: (
-      <>
-        <circle cx="12" cy="7.2" r="3.1" />
-        <path d="M5.5 20.3v-1.1a6.5 6.5 0 0 1 13 0v1.1" />
-      </>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+        <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 10.7 2 10.8 2 11v5c0 .6.4 1 1 1h2" />
+        <circle cx="7" cy="17" r="2" />
+        <path d="M9 17h6" />
+        <circle cx="17" cy="17" r="2" />
+      </svg>
     ),
   },
   {
-    title: "Premium Service",
-    text: "A professional driver for your own car, every trip.",
+    title: "Flat Transparent Rates · No Surge",
+    desc: "Predictable, clear hourly and outstation packages with zero surge pricing, zero hidden driver allowances, and no advance payment required. Pay by UPI or cash after your ride.",
     icon: (
-      <>
-        <path d="m12 3.6 2.55 5.2 5.75.83-4.15 4.05.98 5.72L12 16.7l-5.13 2.7.98-5.72L3.7 9.63l5.75-.83L12 3.6Z" />
-      </>
-    ),
-  },
-  {
-    title: "Affordable Price",
-    text: "Clear hourly and outstation rates, no hidden charges.",
-    icon: (
-      <>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
         <path d="M20.6 13.1 13.1 20.6a2 2 0 0 1-2.83 0L3.4 13.73V3.4h10.33l6.87 6.87a2 2 0 0 1 0 2.83Z" />
         <circle cx="7.9" cy="7.9" r="1.35" />
-      </>
+      </svg>
     ),
   },
   {
-    title: "Instant Booking",
-    text: "Book online in minutes. No app download needed.",
+    title: "Double OTP Ride Protection",
+    desc: "Your trip starts only when you share the secret 4-digit Start OTP with the driver, and completes only when you release the End OTP at your destination.",
     icon: (
-      <>
-        <path d="M13.3 2.8 5.5 13.4h5.2l-.8 7.8 7.8-10.6h-5.2l.8-7.8Z" />
-      </>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+        <rect height="11" rx="2" width="18" x="3" y="11" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    ),
+  },
+  {
+    title: "City Commutes to Outstation Tours",
+    desc: "From short 2-hour shopping runs, office commutes, and airport transfers to weekend outstation trips across Puri, Cuttack, Konark, and beyond.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+        <circle cx="12" cy="12" r="10" />
+        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+      </svg>
+    ),
+  },
+  {
+    title: "Instant 60-Second Booking",
+    desc: "No bulky app to install. Reserve verified drivers instantly via web or WhatsApp. Real-time driver status tracking and 24/7 dedicated telephone support.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+      </svg>
     ),
   },
 ];
@@ -132,10 +145,6 @@ const FAQS = [
     a: "Yes. Every driver undergoes Aadhaar and driving-licence checks plus local police verification before being assigned.",
   },
   {
-    q: "What happens if my car is damaged while the driver is driving?",
-    a: "Vehicle damage while our driver is driving is our direct operational responsibility. Tell our dispatch team immediately so we can record and resolve it.",
-  },
-  {
     q: "Who covers fuel, tolls and parking?",
     a: "Fuel, tolls and parking are paid by you. For outstation trips, you also provide or reimburse the driver's food and overnight stay.",
   },
@@ -155,34 +164,55 @@ export default function Home() {
       {/* HERO */}
       <Hero />
 
-      {/* TRUST STRIP */}
-      <section className="border-b border-slate-200 bg-white py-10">
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 sm:grid-cols-2 lg:grid-cols-5">
-          {TRUST.map((t) => (
-            <div
-              key={t.title}
-              className="droovee-card-shadow flex items-start gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-4"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.75}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  {t.icon}
-                </svg>
-              </span>
-              <div>
-                <p className="text-sm font-bold text-brand-ink">{t.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{t.text}</p>
+      {/* WHY DROOVEE (White Background) */}
+      <section id="why-droovee" className="border-b border-slate-200 bg-white py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border-2 border-brand-ink/15 bg-brand-soft px-5 py-2 text-sm font-extrabold uppercase tracking-widest text-brand-ink shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-accent" />
+              Why Droovee
+            </span>
+            <h2 className="mt-5 text-4xl font-black tracking-tight text-brand-ink sm:text-5xl lg:text-6xl sm:leading-[1.12]">
+              The Smartest, Safest Way to Travel in Your Own Car
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-600 sm:text-xl sm:leading-relaxed">
+              Skip the exhaustion of traffic, parking hassles, and high cab fares. Droovee connects you with background-verified, uniformed professional chauffeurs on demand across Bhubaneswar and Odisha.
+            </p>
+          </div>
+
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {WHY_DROOVEE.map((item) => (
+              <div
+                key={item.title}
+                className="group relative rounded-2xl border border-slate-200/90 bg-slate-50/70 p-7 transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:bg-white hover:shadow-xl sm:p-8"
+              >
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand-ink border border-brand-ink/10 transition-colors group-hover:bg-brand-ink group-hover:text-accent shadow-sm">
+                  {item.icon}
+                </div>
+                <h3 className="mt-5 text-xl font-extrabold text-brand-ink transition group-hover:text-brand-link sm:text-2xl">
+                  {item.title}
+                </h3>
+                <p className="mt-2.5 text-base leading-relaxed text-slate-600">
+                  {item.desc}
+                </p>
               </div>
+            ))}
+          </div>
+
+          {/* Bottom Trust Action Strip */}
+          <div className="mt-14 flex flex-col items-center justify-between gap-5 rounded-2xl border-2 border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 p-6 sm:flex-row sm:px-10 sm:py-8 shadow-sm">
+            <div>
+              <p className="text-lg font-extrabold text-brand-ink sm:text-xl">Ready to travel in stress-free comfort?</p>
+              <p className="mt-1 text-sm text-slate-600">Police-verified drivers · No advance payment · Start & End ride OTPs</p>
             </div>
-          ))}
+            <Link
+              href="/book"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-accent px-8 py-4 text-base font-extrabold text-brand-ink shadow-lg shadow-accent/20 transition hover:scale-105 hover:bg-accent-hover"
+            >
+              <span>Book Your Driver Now</span>
+              <span className="text-lg">→</span>
+            </Link>
+          </div>
         </div>
       </section>
 

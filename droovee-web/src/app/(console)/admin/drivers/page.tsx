@@ -33,6 +33,8 @@ export default function DriversPage() {
   const [uniformSize, setUniformSize] = useState("");
   const [bulkPins, setBulkPins] = useState<Array<{ driverId: string; employeeCode: string; name: string; pin: string }> | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [singlePin, setSinglePin] = useState<{ driverId: string; name: string; pin: string } | null>(null);
+  const [pinCopied, setPinCopied] = useState(false);
 
   function toggleLang(l: string) {
     setForm((f) => ({ ...f, langs: f.langs.includes(l) ? f.langs.filter((x) => x !== l) : [...f.langs, l] }));
@@ -128,10 +130,10 @@ export default function DriversPage() {
 
   async function resetPin(id: string, name: string) {
     setError(null);
-    setNotice(null);
+    setPinCopied(false);
     try {
       const r = await api<{ pin: string }>(`/admin/drivers/${id}/portal-pin`, { method: "POST", body: {} });
-      setNotice(`Portal PIN for ${name}: ${r.pin} — share it privately with the driver. It will not be shown again.`);
+      setSinglePin({ driverId: id, name, pin: r.pin });
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not generate a portal PIN.");
@@ -330,7 +332,50 @@ export default function DriversPage() {
                   Generates a new 6-digit PIN for {focus.name}. The PIN is shown once — share it privately with the driver.
                   Resetting also signs out any device currently using the old PIN.
                 </p>
-                <Button type="button" variant="secondary" className="mt-2" onClick={() => resetPin(focus._id, focus.name)}>
+
+                {singlePin && singlePin.driverId === focus._id && (
+                  <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50/90 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">
+                          Portal PIN for {singlePin.name}
+                        </p>
+                        <div className="mt-1 flex items-baseline gap-3">
+                          <span className="font-mono text-3xl font-extrabold tracking-widest text-emerald-950">
+                            {singlePin.pin}
+                          </span>
+                          <span className="text-xs text-emerald-700">
+                            (Shown once — share privately)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="h-8 text-xs font-semibold"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(singlePin.pin);
+                            setPinCopied(true);
+                            setTimeout(() => setPinCopied(false), 2000);
+                          }}
+                        >
+                          {pinCopied ? "✓ Copied" : "Copy PIN"}
+                        </Button>
+                        <button
+                          type="button"
+                          aria-label="Dismiss PIN"
+                          className="rounded p-1 text-emerald-700 hover:bg-emerald-100"
+                          onClick={() => setSinglePin(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <Button type="button" variant="secondary" className="mt-3" onClick={() => resetPin(focus._id, focus.name)}>
                   Generate new portal PIN
                 </Button>
               </div>

@@ -20,6 +20,7 @@ import { sendMail, bookingConfirmationMail } from "../services/mail";
 import { logNotification } from "../services/notify";
 import { ensureReferralCode, resolvePackage, resolveReferrer, recordReferral } from "../services/growth";
 import type { Pkg } from "../domain/settings";
+import { issueDriverSecrets } from "../services/assignment";
 
 export const bookingsRouter = Router();
 
@@ -275,12 +276,39 @@ async function driverFor(b: { driverId?: unknown; status: string }) {
     ? await DriverModel.findById(b.driverId as string).select("name phone photoUrl experienceYears languages").lean()
     : null;
 }
+async function ensureCodes(b: any) {
+  if (!b || !b.driverId) return;
+  if (!b.tripCodeStart || !b.tripCodeEnd) {
+    const s = issueDriverSecrets();
+    b.tripCodeStart = s.tripCodeStart;
+    b.tripCodeEnd = s.tripCodeEnd;
+    b.tripCodeStartHash = s.tripCodeStartHash;
+    b.tripCodeEndHash = s.tripCodeEndHash;
+    if (!b.driverTokenHash) b.driverTokenHash = s.driverTokenHash;
+    if (!b.shareToken) b.shareToken = s.shareToken;
+    await BookingModel.updateOne(
+      { _id: b._id },
+      {
+        $set: {
+          tripCodeStart: s.tripCodeStart,
+          tripCodeEnd: s.tripCodeEnd,
+          tripCodeStartHash: s.tripCodeStartHash,
+          tripCodeEndHash: s.tripCodeEndHash,
+          ...(b.driverTokenHash ? {} : { driverTokenHash: s.driverTokenHash }),
+          ...(b.shareToken ? {} : { shareToken: s.shareToken }),
+        },
+      },
+    );
+  }
+}
+
 bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof trackQuery> }).validatedQuery;
   // Booking ID alone: IDs are non-guessable (DRV-XXXXXXXX), safe to return without shareToken.
   if (q.bookingNumber && !q.phone) {
     const b = await BookingModel.findOne({ bookingNumber: q.bookingNumber.trim().toUpperCase() }).lean();
     if (!b) throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
+    await ensureCodes(b);
     const view = customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string }));
     delete (view as Record<string, unknown>).shareToken;
     res.json(view);
@@ -316,6 +344,7 @@ bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async
   if (snapshotPhone !== phone && altPhone !== phone) {
     throw new AppError(404, "NOT_FOUND", "We couldn't find that booking.");
   }
+  await ensureCodes(b);
   const view = customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string }));
   delete (view as Record<string, unknown>).shareToken;
   res.json(view);
@@ -332,6 +361,7 @@ bookingsRouter.get("/:id", authenticate, requireCustomer, async (req, res) => {
   if (!Types.ObjectId.isValid(String(req.params.id))) throw new AppError(404, "NOT_FOUND", "Booking not found.");
   const b = await BookingModel.findOne({ _id: String(String(req.params.id)), customerId: req.principal!.id }).lean();
   if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  await ensureCodes(b);
   const driver = b.driverId && ["driver_assigned", "driver_on_the_way", "in_progress", "completed"].includes(b.status)
     ? await DriverModel.findById(b.driverId).select("name phone photoUrl experienceYears languages").lean()
     : null;
@@ -409,6 +439,7 @@ bookingsRouter.post("/:id/cancel", authenticate, requireCustomer, validate(cance
  * notes, driver id) are removed. Driver contact details are shown only after assignment.
  */
 export function customerView(b: Record<string, any>, driver: { name?: string | null; phone?: string | null; photoUrl?: string | null; experienceYears?: number | null; languages?: string[] | null } | null) {
+  const isTripAssignedOrActive = ["driver_assigned", "driver_on_the_way", "driver_arrived", "in_progress"].includes(b.status);
   return {
     id: String(b._id),
     bookingNumber: b.bookingNumber,
@@ -423,6 +454,8 @@ export function customerView(b: Record<string, any>, driver: { name?: string | n
     carModel: b.carModel,
     transmission: b.transmission,
     instructions: b.instructions,
+    startOtp: isTripAssignedOrActive ? (b.tripCodeStart ?? undefined) : undefined,
+    endOtp: isTripAssignedOrActive ? (b.tripCodeEnd ?? undefined) : undefined,
     estimate: b.fareEstimate
       ? { total: b.fareEstimate.total, lines: b.fareEstimate.lines, isEstimate: true, usesUnconfirmedRules: b.fareEstimate.usesUnconfirmedRules }
       : undefined,

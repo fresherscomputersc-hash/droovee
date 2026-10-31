@@ -68,20 +68,20 @@ export function Hero() {
         </div>
 
         <div
-          className="hero-rise mx-auto mt-12 grid max-w-2xl grid-cols-1 divide-y divide-white/10 border-t border-white/10 pt-8 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+          className="hero-rise mx-auto mt-10 grid max-w-2xl grid-cols-3 divide-x divide-white/10 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8"
           style={{ animationDelay: "280ms" }}
         >
-          <div className="px-4 py-4 sm:py-0">
-            <p className="text-3xl font-extrabold text-white">50</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">Verified Drivers</p>
+          <div className="px-2 text-center sm:px-4">
+            <p className="text-2xl font-extrabold text-white sm:text-3xl">50</p>
+            <p className="mt-1 text-[11px] font-medium leading-tight text-slate-400 sm:text-xs">Verified Drivers</p>
           </div>
-          <div className="px-4 py-4 sm:py-0">
-            <p className="text-3xl font-extrabold text-white">1K+</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">Happy Customers</p>
+          <div className="px-2 text-center sm:px-4">
+            <p className="text-2xl font-extrabold text-white sm:text-3xl">1K+</p>
+            <p className="mt-1 text-[11px] font-medium leading-tight text-slate-400 sm:text-xs">Happy Customers</p>
           </div>
-          <div className="px-4 py-4 sm:py-0">
-            <p className="text-3xl font-extrabold text-white">4.9/5</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">from 1,000+ trips</p>
+          <div className="px-2 text-center sm:px-4">
+            <p className="text-2xl font-extrabold text-white sm:text-3xl">4.9/5</p>
+            <p className="mt-1 text-[11px] font-medium leading-tight text-slate-400 sm:text-xs">from 1,000+ trips</p>
           </div>
         </div>
       </div>
