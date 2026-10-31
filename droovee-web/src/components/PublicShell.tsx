@@ -323,7 +323,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 </li>
                 <li>
                   <span className="block text-slate-400">Email:</span>
-                  <span className="font-medium text-slate-800">support@droovee.in</span>
+                  <a href="mailto:droovee.admin@gmail.com" className="font-medium text-slate-800 hover:text-brand-link">droovee.admin@gmail.com</a>
                 </li>
               </ul>
             </div>

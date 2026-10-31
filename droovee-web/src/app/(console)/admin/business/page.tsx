@@ -18,7 +18,7 @@ export default function BusinessPage() {
         address: b.address ?? "",
         supportReplyTarget: b.supportReplyTarget ?? "",
         phone: b.phone ?? "+91 94390 00000",
-        email: b.email ?? "support@droovee.in",
+        email: b.email ?? "droovee.admin@gmail.com",
       });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load the business profile.");
@@ -63,7 +63,7 @@ export default function BusinessPage() {
           <Field label="Business name"><Input value={form.name} onChange={set("name")} placeholder="Droovee Technologies Private Limited" /></Field>
           <Field label="Support reply target"><Input value={form.supportReplyTarget} onChange={set("supportReplyTarget")} placeholder="e.g. Under 15 minutes" /></Field>
           <Field label="Support helpline phone"><Input value={form.phone} onChange={set("phone")} placeholder="+91 94390 00000" /></Field>
-          <Field label="Support email"><Input value={form.email} onChange={set("email")} placeholder="support@droovee.in" /></Field>
+          <Field label="Support email"><Input value={form.email} onChange={set("email")} placeholder="droovee.admin@gmail.com" /></Field>
           <div className="md:col-span-2">
             <Field label="Registered office address"><Textarea rows={3} value={form.address} onChange={set("address")} placeholder="Doorstep Dispatch Hub, Patia, Bhubaneswar, Odisha 751024" /></Field>
           </div>

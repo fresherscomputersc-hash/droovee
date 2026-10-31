@@ -98,7 +98,7 @@ export const config = {
     return process.env.SMTP_PASS ?? "";
   },
   get smtpFrom(): string {
-    return process.env.SMTP_FROM ?? "Droovee <no-reply@droovee.in>";
+    return process.env.SMTP_FROM ?? "Droovee <droovee.admin@gmail.com>";
   },
   get smtpConfigured(): boolean {
     return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";

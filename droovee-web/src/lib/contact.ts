@@ -5,3 +5,4 @@ export const CONTACT_TEL = `tel:+${digits}`;
 export const CONTACT_WHATSAPP = `https://wa.me/${digits}?text=${encodeURIComponent("Hi Droovee, I need a driver.")}`;
 export const waWithText = (text: string) => `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 export const CONTACT_ADDRESS = "Bhubaneswar, Odisha · Open 24×7";
+export const CONTACT_EMAIL = "droovee.admin@gmail.com";

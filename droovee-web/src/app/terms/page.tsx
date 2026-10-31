@@ -162,7 +162,7 @@ export default function TermsPage() {
             </p>
             <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-700 space-y-1">
               <p><strong>Support & Dispatch Desk:</strong> DROOVEE MOBILITY PVT. LTD. (Droovee)</p>
-              <p><strong>Email:</strong> <a href="mailto:support@droovee.in" className="text-brand-link font-medium underline">support@droovee.in</a></p>
+              <p><strong>Email:</strong> <a href="mailto:droovee.admin@gmail.com" className="text-brand-link font-medium underline">droovee.admin@gmail.com</a></p>
               <p><strong>Phone / WhatsApp:</strong> <a href="tel:+918114994367" className="text-brand-link font-medium">+91 81149 94367</a></p>
               <p><strong>Location:</strong> Bhubaneswar, Odisha, India · Open 24×7</p>
             </div>
