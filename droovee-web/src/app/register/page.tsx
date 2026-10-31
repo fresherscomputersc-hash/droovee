@@ -1,14 +1,34 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { PublicShell } from "@/components/PublicShell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { setSession } from "@/lib/session";
 
+// Same-origin paths only: reject protocol-relative (//evil) and backslash
+// escapes — open redirect otherwise.
+function sanitizeNext(rawNext: string | null): string {
+  const next = rawNext || "/book";
+  return /^\/[^/\\]/.test(next) ? next : "/book";
+}
+
 export default function RegisterPage() {
+  return (
+    <PublicShell>
+      <Suspense fallback={null}>
+        <RegisterForm />
+      </Suspense>
+    </PublicShell>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = sanitizeNext(params.get("next"));
+
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "", otp: "" });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -69,7 +89,7 @@ export default function RegisterPage() {
         body: { name: form.name, phone: form.phone, password: form.password, email: form.email || undefined, ...(otpEnabled ? { otp: form.otp } : {}) },
       });
       setSession({ kind: "customer" });
-      router.replace("/book");
+      router.replace(next.startsWith("/") ? next : "/book");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -81,46 +101,44 @@ export default function RegisterPage() {
   }
 
   return (
-    <PublicShell>
-      <div className="mx-auto max-w-md px-4 py-16">
-        <Card>
-          <h1 className="text-xl font-semibold">Create your account</h1>
-          <p className="mt-1 text-sm text-slate-600">Track your bookings and get the launch offer.</p>
-          <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
-            {error && <Alert>{error}</Alert>}
-            {notice && <Alert tone="success">{notice}</Alert>}
-            <Field label="Full name" error={fields.name}>
-              <Input value={form.name} onChange={set("name")} autoComplete="name" invalid={!!fields.name} required />
-            </Field>
-            <Field label="Mobile number" error={fields.phone} hint="Indian mobile number. We use it to contact you about your booking.">
-              <Input value={form.phone} onChange={set("phone")} inputMode="tel" autoComplete="tel" invalid={!!fields.phone} required />
-            </Field>
-            {otpEnabled && (
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-40 flex-1">
-                  <Field label="Mobile OTP *" error={fields.otp}>
-                    <Input value={form.otp} onChange={set("otp")} placeholder="6-digit code" inputMode="numeric" maxLength={6} invalid={!!fields.otp} />
-                  </Field>
-                </div>
-                <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
+    <div className="mx-auto max-w-md px-4 py-16">
+      <Card>
+        <h1 className="text-xl font-semibold">Create your account</h1>
+        <p className="mt-1 text-sm text-slate-600">Track your bookings and get the launch offer.</p>
+        <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
+          {error && <Alert>{error}</Alert>}
+          {notice && <Alert tone="success">{notice}</Alert>}
+          <Field label="Full name" error={fields.name}>
+            <Input value={form.name} onChange={set("name")} autoComplete="name" invalid={!!fields.name} required />
+          </Field>
+          <Field label="Mobile number" error={fields.phone} hint="Indian mobile number. We use it to contact you about your booking.">
+            <Input value={form.phone} onChange={set("phone")} inputMode="tel" autoComplete="tel" invalid={!!fields.phone} required />
+          </Field>
+          {otpEnabled && (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-40 flex-1">
+                <Field label="Mobile OTP *" error={fields.otp}>
+                  <Input value={form.otp} onChange={set("otp")} placeholder="6-digit code" inputMode="numeric" maxLength={6} invalid={!!fields.otp} />
+                </Field>
               </div>
-            )}
-            <Field label="Email (optional)" error={fields.email}>
-              <Input type="email" value={form.email} onChange={set("email")} autoComplete="email" invalid={!!fields.email} />
-            </Field>
-            <Field label="Password" error={fields.password} hint="At least 10 characters — mix letters, numbers and symbols.">
-              <Input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" invalid={!!fields.password} required />
-            </Field>
-            <Field label="Confirm password" error={fields.confirm}>
-              <Input type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" invalid={!!fields.confirm} required />
-            </Field>
-            <Button type="submit" className="w-full" disabled={busy}>{busy ? "Creating account…" : "Create account"}</Button>
-          </form>
-          <p className="mt-6 text-center text-sm text-slate-600">
-            Already have an account? <Link href="/login" className="font-medium text-brand-link hover:underline">Sign in</Link>
-          </p>
-        </Card>
-      </div>
-    </PublicShell>
+              <Button type="button" variant="secondary" onClick={sendOtp}>{otpSent ? "Resend code" : "Send code"}</Button>
+            </div>
+          )}
+          <Field label="Email (optional)" error={fields.email}>
+            <Input type="email" value={form.email} onChange={set("email")} autoComplete="email" invalid={!!fields.email} />
+          </Field>
+          <Field label="Password" error={fields.password} hint="At least 10 characters — mix letters, numbers and symbols.">
+            <Input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" invalid={!!fields.password} required />
+          </Field>
+          <Field label="Confirm password" error={fields.confirm}>
+            <Input type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" invalid={!!fields.confirm} required />
+          </Field>
+          <Button type="submit" className="w-full" disabled={busy}>{busy ? "Creating account…" : "Create account"}</Button>
+        </form>
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Already have an account? <Link href="/login" className="font-medium text-brand-link hover:underline">Sign in</Link>
+        </p>
+      </Card>
+    </div>
   );
 }
