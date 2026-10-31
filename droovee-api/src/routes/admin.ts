@@ -1185,21 +1185,70 @@ adminRouter.patch("/availability-blocks/:id/decision", requirePermission("availa
 
 // ---------- Customers ----------
 const customerQuery = z.object({
-  phone: z.string().trim().max(20).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  phone: z.string().trim().max(50).optional(),
+  search: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
   page: z.coerce.number().int().min(1).default(1),
 });
 
 adminRouter.get("/customers", requirePermission("customers:read"), validateQuery(customerQuery), async (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof customerQuery> }).validatedQuery;
-  // Suffix match (consistent with bookings search): "98765" matches numbers ending in it.
-  const phone = (q.phone ?? "").replace(/\D/g, "");
-  const filter = phone ? { phone: { $regex: phone + "$" } } : {};
+  const digits = (q.search || q.phone || "").replace(/\D/g, "");
+  const text = (q.search || q.phone || "").trim();
+
+  const conditions: Array<Record<string, unknown>> = [];
+  if (digits.length >= 3) {
+    conditions.push({ phone: { $regex: digits + "$" } });
+  }
+  if (text.length >= 2) {
+    const rx = { $regex: text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    conditions.push({ name: rx }, { email: rx });
+  }
+
+  const filter = conditions.length > 0 ? { $or: conditions } : {};
+
   const [items, total] = await Promise.all([
-    CustomerModel.find(filter).select("name phone email active createdAt").skip((q.page - 1) * q.limit).limit(q.limit).lean(),
+    CustomerModel.find(filter)
+      .select("name phone email active createdAt lastLoginAt marketingConsent")
+      .sort({ lastLoginAt: -1, createdAt: -1 })
+      .skip((q.page - 1) * q.limit)
+      .limit(q.limit)
+      .lean(),
     CustomerModel.countDocuments(filter),
   ]);
-  res.json({ ...pageOf(items.map((c) => ({ ...c, phone: maskPhone(c.phone) })), total, q.page, q.limit) });
+
+  res.json({
+    ...pageOf(
+      items.map((c) => ({
+        ...c,
+        phone: c.phone, // Unmasked for authorized admin/staff for marketing and operational dispatch
+        email: c.email || null,
+        lastLoginAt: c.lastLoginAt ?? null,
+        marketingConsent: c.marketingConsent ?? true,
+      })),
+      total,
+      q.page,
+      q.limit,
+    ),
+  });
+});
+
+/** Export all customers with contact details for marketing and communications. */
+adminRouter.get("/customers/export", requirePermission("customers:read"), async (_req, res) => {
+  const customers = await CustomerModel.find()
+    .select("name phone email active createdAt lastLoginAt marketingConsent")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.json({
+    items: customers.map((c) => ({
+      ...c,
+      phone: c.phone,
+      email: c.email || "",
+      lastLoginAt: c.lastLoginAt ?? null,
+      marketingConsent: c.marketingConsent ?? true,
+    })),
+  });
 });
 
 // ---------- Coupons ----------
