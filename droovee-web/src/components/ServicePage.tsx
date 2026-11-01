@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PublicShell } from "@/components/PublicShell";
 import { CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
+import { BreadcrumbJsonLd, ServiceJsonLd } from "@/components/JsonLd";
 
 /**
  * Shared layout for the five dedicated service pages.
@@ -56,6 +57,18 @@ export function ServicePage({ content }: { content: ServicePageContent }) {
 
   return (
     <PublicShell>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: "https://droovee.com" },
+          { name: content.label, url: `https://droovee.com${content.href}` },
+        ]}
+      />
+      <ServiceJsonLd
+        name={content.title}
+        description={content.intro}
+        url={`https://droovee.com${content.href}`}
+        serviceType={content.label}
+      />
       {/* HERO */}
       <section className="bg-brand-ink text-white">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-12 lg:gap-16 lg:px-10 lg:py-20">

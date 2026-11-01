@@ -2,9 +2,19 @@ import type { Metadata } from "next";
 import { ServicePage } from "@/components/ServicePage";
 
 export const metadata: Metadata = {
-  title: "Airport transfer in Bhubaneswar — Droovee",
+  title: "Biju Patnaik Airport (BBI) Driver Transfers in Bhubaneswar | Droovee",
   description:
-    "Punctual airport, railway and bus-stop pickup and drop in Bhubaneswar. A verified driver for your own car, with 24x7 dispatch.",
+    "Punctual airport and railway station driver transfers in Bhubaneswar for your own car. 24x7 dispatch, flight delay monitoring, luggage help & verified chauffeurs. Pay after drop.",
+  alternates: {
+    canonical: "https://droovee.com/airport-transfer",
+  },
+  openGraph: {
+    title: "Biju Patnaik Airport (BBI) Driver Transfers in Bhubaneswar | Droovee",
+    description:
+      "Reliable 24x7 airport and train station chauffeurs for your personal vehicle in Bhubaneswar. Flight delay coverage and transparent pricing.",
+    url: "https://droovee.com/airport-transfer",
+    images: [{ url: "/services/airport-transfer.jpg", width: 1200, height: 630, alt: "Bhubaneswar airport driver transfer" }],
+  },
 };
 
 export default function AirportTransferPage() {

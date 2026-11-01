@@ -1,5 +1,22 @@
+import type { Metadata } from "next";
 import { PublicShell } from "@/components/PublicShell";
 import { Card } from "@/components/ui";
+import { FaqJsonLd, BreadcrumbJsonLd } from "@/components/JsonLd";
+
+export const metadata: Metadata = {
+  title: "Frequently Asked Questions About Hiring Drivers in Bhubaneswar | Droovee",
+  description:
+    "Got questions about hiring a professional driver in Bhubaneswar? Learn about pricing, toll/fuel policies, outstation trips, police verification, and payment options.",
+  alternates: {
+    canonical: "https://droovee.com/faq",
+  },
+  openGraph: {
+    title: "Frequently Asked Questions About Hiring Drivers in Bhubaneswar | Droovee",
+    description:
+      "All your questions answered about booking verified chauffeurs for your personal car in Bhubaneswar & Odisha.",
+    url: "https://droovee.com/faq",
+  },
+};
 
 const FAQS = [
   { q: "Who pays for tolls, parking and fuel?", a: "You (the customer) pay tolls, parking and fuel on all trips, including outstation trips." },
@@ -15,6 +32,13 @@ const FAQS = [
 export default function FaqPage() {
   return (
     <PublicShell>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: "https://droovee.com" },
+          { name: "FAQ", url: "https://droovee.com/faq" },
+        ]}
+      />
+      <FaqJsonLd faqs={FAQS} />
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-10">
         <h1 className="text-2xl font-semibold tracking-tight">Frequently asked questions</h1>
         {FAQS.map((f) => (
