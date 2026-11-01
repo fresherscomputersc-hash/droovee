@@ -168,16 +168,9 @@ export default function Home() {
       <section id="why-droovee" className="border-b border-slate-200 bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border-2 border-brand-ink/15 bg-brand-soft px-5 py-2 text-sm font-extrabold uppercase tracking-widest text-brand-ink shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-accent" />
+            <h2 className="text-4xl font-black tracking-tight text-brand-ink sm:text-5xl lg:text-6xl sm:leading-[1.12]">
               Why Droovee
-            </span>
-            <h2 className="mt-5 text-4xl font-black tracking-tight text-brand-ink sm:text-5xl lg:text-6xl sm:leading-[1.12]">
-              The Smartest, Safest Way to Travel in Your Own Car
             </h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-600 sm:text-xl sm:leading-relaxed">
-              Skip the exhaustion of traffic, parking hassles, and high cab fares. Droovee connects you with background-verified, uniformed professional chauffeurs on demand across Bhubaneswar and Odisha.
-            </p>
           </div>
 
           <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
