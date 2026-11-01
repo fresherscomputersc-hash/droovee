@@ -2,9 +2,19 @@ import type { Metadata } from "next";
 import { ServicePage } from "@/components/ServicePage";
 
 export const metadata: Metadata = {
-  title: "Corporate driver services in Bhubaneswar — Droovee",
+  title: "Corporate Driver & Fleet Chauffeur Services in Bhubaneswar | Droovee",
   description:
-    "Dedicated commute drivers for offices, hospitals and institutions in Bhubaneswar, with monthly billing and GST invoices for your finance team.",
+    "Dedicated corporate drivers for companies, institutions, hospitals & executive fleets in Bhubaneswar. Uniformed professional chauffeurs, monthly corporate billing & GST invoices.",
+  alternates: {
+    canonical: "https://droovee.com/corporate",
+  },
+  openGraph: {
+    title: "Corporate Driver & Fleet Chauffeur Services in Bhubaneswar | Droovee",
+    description:
+      "Professional corporate driver services for businesses and institutions across Bhubaneswar. Consistent drivers, monthly invoicing and dedicated dispatch desk.",
+    url: "https://droovee.com/corporate",
+    images: [{ url: "/services/corporate.jpg", width: 1200, height: 630, alt: "Corporate driver services in Bhubaneswar" }],
+  },
 };
 
 export default function CorporatePage() {

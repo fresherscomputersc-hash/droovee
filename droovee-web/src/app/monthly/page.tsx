@@ -2,9 +2,19 @@ import type { Metadata } from "next";
 import { ServicePage } from "@/components/ServicePage";
 
 export const metadata: Metadata = {
-  title: "Monthly driver in Bhubaneswar — Droovee",
+  title: "Monthly Personal Drivers in Bhubaneswar for Daily Office & Family Commute | Droovee",
   description:
-    "A monthly driver for your daily office run, school drop or hospital visits in Bhubaneswar. The same verified chauffeur, monthly billing and a GST invoice.",
+    "Hire a dedicated monthly driver for your own car in Bhubaneswar. Same verified chauffeur daily, predictable schedule, monthly billing & replacement guarantee. GST invoices available.",
+  alternates: {
+    canonical: "https://droovee.com/monthly",
+  },
+  openGraph: {
+    title: "Monthly Personal Drivers in Bhubaneswar for Daily Office & Family Commute | Droovee",
+    description:
+      "A dedicated, background-verified personal driver for your daily office runs, school drops & family transit in Bhubaneswar. Monthly billing with GST.",
+    url: "https://droovee.com/monthly",
+    images: [{ url: "/services/monthly.jpg", width: 1200, height: 630, alt: "Monthly driver in Bhubaneswar" }],
+  },
 };
 
 export default function MonthlyPage() {

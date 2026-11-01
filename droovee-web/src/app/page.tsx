@@ -1,8 +1,34 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicShell } from "@/components/PublicShell";
 import { Hero } from "@/components/Hero";
 import { PricingCta } from "@/components/PricingCta";
 import { CONTACT_PHONE_DISPLAY, CONTACT_TEL, CONTACT_WHATSAPP } from "@/lib/contact";
+import { FaqJsonLd } from "@/components/JsonLd";
+
+export const metadata: Metadata = {
+  title: "Hire Professional Drivers for Your Own Car in Bhubaneswar | Droovee",
+  description:
+    "Need a driver for rent in Bhubaneswar? Book background-verified, uniformed professional chauffeurs on demand for your own car. Hourly city trips, outstation to Puri & Cuttack, airport transfers, and monthly office drivers. 24x7 doorstep dispatch.",
+  alternates: {
+    canonical: "https://droovee.com",
+  },
+  openGraph: {
+    title: "Hire Professional Drivers for Your Own Car in Bhubaneswar | Droovee",
+    description:
+      "Book background-verified, uniformed chauffeurs on demand for your own car across Bhubaneswar and Odisha. 24x7 doorstep dispatch.",
+    url: "https://droovee.com",
+    siteName: "Droovee",
+    images: [
+      {
+        url: "/launch-hero.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Droovee — Hire Drivers for Your Own Car in Bhubaneswar",
+      },
+    ],
+  },
+};
 
 const WHY_DROOVEE = [
   {
@@ -161,6 +187,7 @@ const FAQS = [
 export default function Home() {
   return (
     <PublicShell>
+      <FaqJsonLd faqs={FAQS} />
       {/* HERO */}
       <Hero />
 

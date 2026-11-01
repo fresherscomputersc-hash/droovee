@@ -1,12 +1,24 @@
+import type { Metadata } from "next";
 import { PublicShell } from "@/components/PublicShell";
 import { Card } from "@/components/ui";
 import { CONTACT_ADDRESS, CONTACT_PHONE_DISPLAY } from "@/lib/contact";
+import { BreadcrumbJsonLd } from "@/components/JsonLd";
 
-/**
- * Prerendered with a 5-minute revalidate window. The business profile changes
- * rarely (admin edit), so a cached copy is fine and avoids a per-visit round
- * trip to the API. The timeout keeps a cold API from stalling the build.
- */
+export const metadata: Metadata = {
+  title: "About Droovee — Professional Chauffeur Service in Bhubaneswar",
+  description:
+    "Learn about Droovee: Bhubaneswar's 24x7 company-managed driver service for your personal vehicle. Background-verified chauffeurs, transparent pricing, and complete peace of mind.",
+  alternates: {
+    canonical: "https://droovee.com/about",
+  },
+  openGraph: {
+    title: "About Droovee — Professional Chauffeur Service in Bhubaneswar",
+    description:
+      "Bhubaneswar's trusted 24x7 company-managed driver service for your own car.",
+    url: "https://droovee.com/about",
+  },
+};
+
 export const revalidate = 300;
 
 async function getBusiness() {
@@ -27,6 +39,12 @@ export default async function AboutPage() {
   const biz = await getBusiness();
   return (
     <PublicShell>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: "https://droovee.com" },
+          { name: "About Us", url: "https://droovee.com/about" },
+        ]}
+      />
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-10">
         <h1 className="text-2xl font-semibold tracking-tight">About Droovee</h1>
         <Card>

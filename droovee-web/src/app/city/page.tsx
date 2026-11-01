@@ -2,9 +2,19 @@ import type { Metadata } from "next";
 import { ServicePage } from "@/components/ServicePage";
 
 export const metadata: Metadata = {
-  title: "City driver in Bhubaneswar — Droovee",
+  title: "Hourly City Driver in Bhubaneswar — Driver for Your Own Car | Droovee",
   description:
-    "Book a professional driver for city errands across Bhubaneswar. Shopping, meetings, hospital visits and daily runs in your own car, by the hour.",
+    "Hire background-verified hourly drivers for your own car in Bhubaneswar. Ideal for shopping, business meetings, hospital visits & errands across Patia, Saheed Nagar & Khandagiri. Pay after ride.",
+  alternates: {
+    canonical: "https://droovee.com/city",
+  },
+  openGraph: {
+    title: "Hourly City Driver in Bhubaneswar — Driver for Your Own Car | Droovee",
+    description:
+      "Hire background-verified hourly drivers for your own car in Bhubaneswar. Professional chauffeurs on demand across Patia, Saheed Nagar, Nayapalli & Cuttack Road.",
+    url: "https://droovee.com/city",
+    images: [{ url: "/services/city.jpg", width: 1200, height: 630, alt: "City driver in Bhubaneswar" }],
+  },
 };
 
 export default function CityPage() {

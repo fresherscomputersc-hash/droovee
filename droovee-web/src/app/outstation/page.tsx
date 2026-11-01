@@ -2,9 +2,19 @@ import type { Metadata } from "next";
 import { ServicePage } from "@/components/ServicePage";
 
 export const metadata: Metadata = {
-  title: "Outstation driver from Bhubaneswar — Droovee",
+  title: "Outstation Driver from Bhubaneswar to Puri, Cuttack & Across Odisha | Droovee",
   description:
-    "One-way and round-trip drivers from Bhubaneswar to Puri, Cuttack, Konark and beyond. A verified highway chauffeur for your own car.",
+    "Book experienced highway drivers for your own car from Bhubaneswar to Puri, Konark, Cuttack, Angul, Berhampur & across Odisha. One-way drops & round trips with verified highway chauffeurs.",
+  alternates: {
+    canonical: "https://droovee.com/outstation",
+  },
+  openGraph: {
+    title: "Outstation Driver from Bhubaneswar to Puri, Cuttack & Across Odisha | Droovee",
+    description:
+      "One-way and round-trip highway drivers for your personal vehicle from Bhubaneswar. Verified chauffeurs for long distance routes with zero advance payment.",
+    url: "https://droovee.com/outstation",
+    images: [{ url: "/services/outstation.jpg", width: 1200, height: 630, alt: "Outstation driver from Bhubaneswar" }],
+  },
 };
 
 export default function OutstationPage() {

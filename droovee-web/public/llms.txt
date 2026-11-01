@@ -1,0 +1,44 @@
+# Droovee
+
+> Professional driver-booking service for your personal car in Bhubaneswar, Odisha.
+
+Droovee connects car owners with trained, background-verified, and police-checked professional chauffeurs on demand. Customers use their own vehicles; Droovee provides the verified driver. Droovee is NOT a self-drive rental or traditional cab service.
+
+## Core Services
+
+- **Hourly City Drivers (/city)**: On-demand chauffeurs for shopping, business meetings, hospital transit, dining, and daily city errands across Bhubaneswar. Billed hourly with flexible extension.
+- **Outstation Highway Drivers (/outstation)**: Highway-experienced chauffeurs for one-way drops and round-trip journeys from Bhubaneswar to Puri, Cuttack, Konark, Angul, Berhampur, and throughout Odisha.
+- **Airport & Station Transfers (/airport-transfer)**: Punctual 24x7 driver pickups and drops at Biju Patnaik International Airport (BBI), Bhubaneswar Railway Station, and inter-state bus terminals. Flight delays tracked automatically.
+- **Monthly Personal Drivers (/monthly)**: Dedicated chauffeurs for daily office commutes, school runs, and executive transit with consolidated monthly billing, replacement guarantees, and GST invoicing.
+- **Corporate Fleet Drivers (/corporate)**: Institutional chauffeur plans for offices, hospitals, showrooms, and enterprise fleets in Bhubaneswar.
+
+## Key Facts & Operational Policies
+
+- **Service Model**: Chauffeur only for customer-owned vehicles (Sedan, SUV, Hatchback, EV, Luxury, Manual & Automatic).
+- **Service Area**: Bhubaneswar (primary headquarters: Patia, Saheed Nagar, Nayapalli, Khandagiri, Chandrasekharpur, IRC Village), Cuttack, Puri, Khordha, and wider Odisha.
+- **Security & Safety**: 100% Aadhaar verified, driving license checked, and local police verification completed prior to assignment.
+- **Ride Protection**: Double OTP verification (secret 4-digit Start OTP to begin trip, secret End OTP to complete trip).
+- **Pricing Policy**: Flat transparent pricing with zero surge fees and no advance payment required. Customers pay after trip completion via UPI or Cash.
+- **Fuel & Tolls**: Fuel is supplied in customer's vehicle; road tolls and parking are paid directly by the customer.
+
+## Official Contact Channels
+
+- **Website**: https://droovee.com
+- **Telephone / Dispatch**: +91 81149 94367 (24x7 Doorstep Dispatch)
+- **WhatsApp**: https://wa.me/918114994367
+- **Email**: droovee.admin@gmail.com
+- **Operating Hours**: 24 hours a day, 7 days a week, 365 days a year.
+
+## Essential URLs
+
+- Homepage: https://droovee.com
+- City Driver: https://droovee.com/city
+- Outstation Driver: https://droovee.com/outstation
+- Airport Transfers: https://droovee.com/airport-transfer
+- Monthly Commutes: https://droovee.com/monthly
+- Corporate Plans: https://droovee.com/corporate
+- Fare Calculator: https://droovee.com/pricing
+- Packages: https://droovee.com/packages
+- How It Works: https://droovee.com/how-it-works
+- FAQ: https://droovee.com/faq
+- Reviews: https://droovee.com/testimonials
