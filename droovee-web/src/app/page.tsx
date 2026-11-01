@@ -163,6 +163,14 @@ const REVIEWS = [
 
 const FAQS = [
   {
+    q: "Can I hire a driver for my own car in Bhubaneswar?",
+    a: "Yes. Droovee provides background-verified, uniformed professional chauffeurs on demand to drive your personal car for hourly city errands, outstation journeys, and airport transfers.",
+  },
+  {
+    q: "Can I book an outstation driver from Bhubaneswar to Puri or Cuttack?",
+    a: "Yes. You can book highway-experienced drivers for one-way drops or round trips from Bhubaneswar to Puri, Cuttack, Konark, and across Odisha with flat rates and no advance payment.",
+  },
+  {
     q: "Do I need an account to book?",
     a: "Yes. Sign in or create a free account in under a minute. This keeps your trips, invoices and support history in one place.",
   },
