@@ -45,7 +45,7 @@ export function Hero() {
           className="hero-rise mx-auto mt-5 max-w-2xl text-base leading-relaxed text-on-dark sm:text-lg"
           style={{ animationDelay: "140ms" }}
         >
-          Book experienced drivers for your own car. Safe, reliable, and convenient transportation whenever you need it.
+          Hire background-verified, professional drivers for your own car in Bhubaneswar. On-demand hourly city trips, outstation travel to Puri &amp; Cuttack, and 24&times;7 airport transfers.
         </p>
 
         <div
