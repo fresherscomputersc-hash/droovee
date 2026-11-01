@@ -168,9 +168,10 @@ export default function Home() {
       <section id="why-droovee" className="border-b border-slate-200 bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="text-4xl font-black tracking-tight text-brand-ink sm:text-5xl lg:text-6xl sm:leading-[1.12]">
-              Why Droovee
+            <h2 className="inline-block text-4xl font-black tracking-tight text-brand-ink sm:text-5xl lg:text-6xl sm:leading-[1.12]">
+              Why <span className="text-brand-link">Droovee</span>
             </h2>
+            <div className="mx-auto mt-4 h-1.5 w-16 rounded-full bg-accent shadow-sm shadow-accent/40" />
           </div>
 
           <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
