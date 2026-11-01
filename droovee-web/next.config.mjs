@@ -14,6 +14,17 @@ const nextConfig = {
   },
   // Preview hosts (*.e2b.app) must be allowed to load dev assets.
   allowedDevOrigins: ["*.e2b.app"],
+  async redirects() {
+    return [
+      { source: "/services/hourly", destination: "/city", permanent: true },
+      { source: "/services/half_day", destination: "/city", permanent: true },
+      { source: "/services/full_day", destination: "/city", permanent: true },
+      { source: "/services/outstation_one_way", destination: "/outstation", permanent: true },
+      { source: "/services/outstation_round_trip", destination: "/outstation", permanent: true },
+      { source: "/services/airport_pickup_drop", destination: "/airport-transfer", permanent: true },
+      { source: "/services/monthly_office", destination: "/monthly", permanent: true },
+    ];
+  },
   // Browser code calls /api/v1/* on the same origin; Next proxies to the API server.
   async rewrites() {
     return [{ source: "/api/v1/:path*", destination: `${API_TARGET}/api/v1/:path*` }];
