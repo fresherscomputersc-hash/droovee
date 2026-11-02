@@ -278,9 +278,10 @@ test("booking: customer creates a booking with password-only login", async () =>
 test("owner alert: a new customer booking messages the owner on WhatsApp; staff bookings do not", async () => {
   const token = await registerCustomer("9812400005", "Alert Customer");
 
-  // Only this test enables the owner alert.
+  // Only this test enables the owner alert. 10-digit numbers exercise the
+  // +91 normalisation; two numbers exercise multi-recipient delivery.
   const savedNumber = process.env.ADMIN_WHATSAPP_NUMBER;
-  process.env.ADMIN_WHATSAPP_NUMBER = "+919811100000";
+  process.env.ADMIN_WHATSAPP_NUMBER = "9811100000, 9822200000";
 
   // The API runs in this process, so stubbing fetch catches its Wakit call while
   // localhost calls (the test's own requests) pass through untouched.
@@ -309,15 +310,26 @@ test("owner alert: a new customer booking messages the owner on WhatsApp; staff 
       if (!row) await new Promise((r) => setTimeout(r, 50));
     }
     assert.ok(row, "owner alert must be logged for a new customer booking");
-    assert.equal(row!.to, "+919811100000");
     assert.equal(row!.channel, "whatsapp");
     assert.equal(row!.sent, true, "the stubbed Wakit send succeeds");
 
-    assert.equal(wakitCalls.length, 1, "exactly one WhatsApp message per customer booking");
-    assert.equal(wakitCalls[0].url, "https://wakit.test/api/v1/messages");
-    assert.equal(wakitCalls[0].body.to, "+919811100000");
-    assert.equal(wakitCalls[0].body.type, "text");
-    assert.match(wakitCalls[0].body.text.body, new RegExp(created.body.bookingNumber));
+    // Both configured numbers get the alert, each with its own log row.
+    let rows = 0;
+    for (let i = 0; i < 60 && rows < 2; i++) {
+      rows = await models.NotificationModel.countDocuments({ bookingId: created.body.id, event: "admin_new_booking" });
+      if (rows < 2) await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(rows, 2);
+    assert.equal(wakitCalls.length, 2, "one WhatsApp message per configured owner number");
+    assert.deepEqual(
+      wakitCalls.map((c) => c.body.to).sort(),
+      ["+919811100000", "+919822200000"],
+    );
+    for (const sentCall of wakitCalls) {
+      assert.equal(sentCall.url, "https://wakit.test/api/v1/messages");
+      assert.equal(sentCall.body.type, "text");
+      assert.match(sentCall.body.text.body, new RegExp(created.body.bookingNumber));
+    }
 
     // Staff-created bookings are dispatched inside the console: no owner alert.
     const owner = await staffLogin("owner@droovee.test");

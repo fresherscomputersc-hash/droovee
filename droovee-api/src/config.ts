@@ -104,15 +104,21 @@ export const config = {
     return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";
   },
   /**
-   * Owner WhatsApp number for the new-booking alert, in E.164 format
-   * (e.g. +919876543210). Uses the same WAKIT_API_KEY as OTP.
-   * Empty = WhatsApp alert off; the email fallback below applies instead.
+   * Owner WhatsApp number(s) for the new-booking alert, comma or space
+   * separated. 10-digit Indian numbers get the +91 prefix added; full E.164
+   * values (e.g. +919876543210) pass through. Uses the same WAKIT_API_KEY as
+   * OTP. Empty = WhatsApp alert off; the email fallback below applies instead.
    */
-  get adminWhatsappNumber(): string {
-    return (process.env.ADMIN_WHATSAPP_NUMBER ?? "").trim();
+  get adminWhatsappNumbers(): string[] {
+    const raw = (process.env.ADMIN_WHATSAPP_NUMBER ?? "")
+      .split(/[,\s]+/)
+      .map((v) => v.replace(/[^\d+]/g, ""))
+      .filter(Boolean)
+      .map((v) => (v.startsWith("+") ? v : v.length === 10 ? `+91${v}` : `+${v}`));
+    return [...new Set(raw)];
   },
   get adminWhatsappEnabled(): boolean {
-    return this.adminWhatsappNumber !== "" && this.wakitApiKey !== "";
+    return this.adminWhatsappNumbers.length > 0 && this.wakitApiKey !== "";
   },
   /**
    * Optional approved Wakit template for the owner alert. Templates reach the

@@ -144,28 +144,29 @@ export async function notifyAdminNewBooking(bookingId: Types.ObjectId | string):
     });
 
     if (config.adminWhatsappEnabled) {
-      const to = config.adminWhatsappNumber;
       const template = config.wakitBookingTemplate;
-      let sent: boolean;
-      if (template) {
-        // Order matters: must match the approved template's placeholders.
-        const params = [
-          b.bookingNumber,
-          b.serviceType,
-          b.scheduledStart.toLocaleString("en-IN", {
-            timeZone: "Asia/Kolkata",
-            dateStyle: "medium",
-            timeStyle: "short",
-          }) + " IST",
-          `${b.customerSnapshot?.name ?? customer?.name ?? "Customer"} (${b.customerSnapshot?.phone ?? customer?.phone ?? "—"})`,
-          String(b.fareEstimate?.total ?? 0),
-          `${config.webUrl}/admin/bookings/${b._id}`,
-        ];
-        sent = await sendWakitTemplate(to, template, params, config.wakitBookingTemplateLang);
-      } else {
-        sent = await sendWakitText(to, t.text);
+      // Order matters: must match the approved template's placeholders.
+      const params = template
+        ? [
+            b.bookingNumber,
+            b.serviceType,
+            b.scheduledStart.toLocaleString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              dateStyle: "medium",
+              timeStyle: "short",
+            }) + " IST",
+            `${b.customerSnapshot?.name ?? customer?.name ?? "Customer"} (${b.customerSnapshot?.phone ?? customer?.phone ?? "—"})`,
+            String(b.fareEstimate?.total ?? 0),
+            `${config.webUrl}/admin/bookings/${b._id}`,
+          ]
+        : null;
+      // One message per configured owner number, logged separately.
+      for (const to of config.adminWhatsappNumbers) {
+        const sent = params
+          ? await sendWakitTemplate(to, template, params, config.wakitBookingTemplateLang)
+          : await sendWakitText(to, t.text);
+        await logNotification(b._id as Types.ObjectId, "admin_new_booking", "whatsapp", to, sent, sent ? undefined : "wakit send failed");
       }
-      await logNotification(b._id as Types.ObjectId, "admin_new_booking", "whatsapp", to, sent, sent ? undefined : "wakit send failed");
       return;
     }
 
