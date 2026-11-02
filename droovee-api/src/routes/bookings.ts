@@ -17,7 +17,7 @@ import { bookingCreateLimiter, cancellationLimiter, estimateLimiter } from "../l
 import { BookingStatus } from "../domain/status";
 import { config } from "../config";
 import { sendMail, bookingConfirmationMail } from "../services/mail";
-import { logNotification } from "../services/notify";
+import { logNotification, notifyAdminNewBooking } from "../services/notify";
 import { ensureReferralCode, resolvePackage, resolveReferrer, recordReferral } from "../services/growth";
 import type { Pkg } from "../domain/settings";
 import { issueDriverSecrets } from "../services/assignment";
@@ -255,6 +255,10 @@ bookingsRouter.post("/", authenticate, requireCustomer, bookingCreateLimiter(), 
       .then((sent) => logNotification(booking._id as Types.ObjectId, "received", "email", customer.email!, sent, sent ? undefined : "smtp not configured or send failed"))
       .catch(() => {});
   }
+
+  // Owner alert: the client wants every new booking in his Gmail. Fire-and-forget,
+  // so a slow/unreachable SMTP server can never fail the booking.
+  notifyAdminNewBooking(booking._id as Types.ObjectId).catch(() => {});
 
   res.status(201).json(customerView(booking.toObject(), null));
 });

@@ -103,6 +103,17 @@ export const config = {
   get smtpConfigured(): boolean {
     return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";
   },
+  /**
+   * Owner inbox that gets an email for every new customer booking.
+   * Unset = the client's Gmail; set ADMIN_NOTIFY_EMAIL="" to switch alerts off.
+   */
+  get adminNotifyEmail(): string {
+    const v = process.env.ADMIN_NOTIFY_EMAIL;
+    return (v === undefined ? "droovee.admin@gmail.com" : v).trim();
+  },
+  get adminNotifyEnabled(): boolean {
+    return this.adminNotifyEmail !== "";
+  },
   /** Public web URL, used to build password-reset links in emails. */
   get webUrl(): string {
     return (process.env.WEB_URL ?? "http://localhost:3000").replace(/\/$/, "");

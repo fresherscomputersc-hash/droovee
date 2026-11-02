@@ -295,6 +295,112 @@ export function bookingConfirmationMail(opts: {
   return { subject, text, html };
 }
 
+/** Escapes user-supplied text for HTML email bodies (names, addresses, car models). */
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+/**
+ * Internal alert for the owner's inbox: a new customer booking just landed.
+ * Same branded layout, but written for dispatch (who/what/when/where/how much)
+ * with a one-tap link into the admin console.
+ */
+export function newBookingAlertMail(opts: {
+  bookingNumber: string;
+  customerName: string;
+  customerPhone: string;
+  serviceType: string;
+  start: Date;
+  pickup: string;
+  destination?: string;
+  carModel?: string;
+  transmission?: string;
+  durationHours?: number;
+  nights?: number;
+  couponCode?: string;
+  total: number;
+  source?: string;
+  adminUrl?: string;
+}): { subject: string; text: string; html: string } {
+  const istDateStr = opts.start.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  // The admin booking detail route is keyed by Mongo id, so the caller passes
+  // the exact link; the fallback is the bookings list (always valid).
+  const adminUrl = opts.adminUrl ?? "https://droovee.in/admin/bookings";
+  const subject = `New booking #${opts.bookingNumber}: ${opts.serviceType} · ₹${opts.total} · ${istDateStr}`;
+
+  const text = [
+    `New booking received.`,
+    ``,
+    `- Booking ID: ${opts.bookingNumber}`,
+    `- Customer: ${opts.customerName} (${opts.customerPhone})`,
+    `- Service: ${opts.serviceType}${opts.source ? ` (source: ${opts.source})` : ""}`,
+    `- Scheduled Pickup: ${istDateStr} (IST)`,
+    opts.durationHours ? `- Duration: ${opts.durationHours} hour(s)${opts.nights ? `, ${opts.nights} night(s)` : ""}` : null,
+    `- Pickup Address: ${opts.pickup}`,
+    opts.destination ? `- Destination: ${opts.destination}` : null,
+    opts.carModel ? `- Vehicle: ${opts.carModel}${opts.transmission ? ` (${opts.transmission})` : ""}` : null,
+    `- Estimated Fare: ₹${opts.total}`,
+    opts.couponCode ? `- Coupon applied: ${opts.couponCode}` : null,
+    ``,
+    `Open in admin console: ${adminUrl}`,
+    ``,
+    `— Droovee booking alerts`,
+  ].filter(Boolean).join("\n");
+
+  const row = (label: string, value: string) => `
+      <tr>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748B; width: 35%;">${label}:</td>
+        <td style="padding: 8px 12px; font-size: 13px; color: #1E293B;">${value}</td>
+      </tr>`;
+
+  const html = emailLayout(
+    `New booking ${opts.bookingNumber}`,
+    `<div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: #FEF3C7; color: #92400E; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">
+        ● New Booking Received
+      </span>
+      <h1 style="margin: 12px 0 4px; font-size: 22px; font-weight: 800; color: #0F172A;">
+        #${opts.bookingNumber}
+      </h1>
+      <p style="margin: 0; font-size: 13px; color: #64748B;">
+        ${opts.serviceType} · ₹${opts.total} · ${istDateStr} (IST)
+      </p>
+    </div>
+
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px; padding: 8px 4px;">
+      ${row("Customer", `${esc(opts.customerName)} (${esc(opts.customerPhone)})`)}
+      ${row("Scheduled Pickup", `<strong style="color: #059669;">${istDateStr} (IST)</strong>`)}
+      ${opts.durationHours ? row("Duration", `${opts.durationHours} hour(s)${opts.nights ? ` · ${opts.nights} night(s)` : ""}`) : ""}
+      ${row("Pickup Address", esc(opts.pickup))}
+      ${opts.destination ? row("Destination", esc(opts.destination)) : ""}
+      ${opts.carModel ? row("Vehicle", `${esc(opts.carModel)}${opts.transmission ? ` (${esc(opts.transmission)})` : ""}`) : ""}
+      ${row("Estimated Fare", `<strong style="font-size: 16px; color: #0F172A;">₹${opts.total}</strong>`)}
+      ${opts.couponCode ? row("Coupon", esc(opts.couponCode)) : ""}
+      ${opts.source ? row("Source", esc(opts.source)) : ""}
+    </table>
+
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+      <tr>
+        <td align="center">
+          <a href="${adminUrl}" style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 14px; font-weight: 700; padding: 12px 24px; border-radius: 8px; text-decoration: none;">
+            Open Booking in Admin Console →
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <div style="background-color: #F1F5F9; border-radius: 8px; padding: 12px; font-size: 11px; color: #475569; line-height: 1.5;">
+      ⚡ Action needed: assign a driver to confirm the booking. This alert fires for customer bookings created online.
+    </div>`
+  );
+
+  return { subject, text, html };
+}
+
 /** 3. Ride Completion & Receipt Email Template (CLIENT REQ §5) */
 export function tripCompletedMail(opts: {
   bookingNumber: string;

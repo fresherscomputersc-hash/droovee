@@ -445,7 +445,7 @@ export const ReferralModel = model("Referral", referralSchema);
 const notificationSchema = new Schema(
   {
     bookingId: { type: Schema.Types.ObjectId, ref: "Booking", required: true, index: true },
-    event: { type: String, enum: ["received", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed", "cancelled", "reminder"], required: true },
+    event: { type: String, enum: ["received", "confirmed", "driver_assigned", "driver_on_the_way", "in_progress", "completed", "cancelled", "reminder", "admin_new_booking"], required: true },
     channel: { type: String, enum: ["email", "whatsapp", "sms"], required: true },
     to: { type: String, required: true },
     sent: { type: Boolean, default: false },
