@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import "./launch.css";
 
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+// Self-hosted Montserrat (variable, latin subset, wght 400–900).
+// Vendored from Google Fonts so builds never depend on fonts.googleapis.com:
+// next/font/google fails the build when Google returns an extensionless
+// /l/font?kit= URL (vercel/next.js#99114).
+const montserrat = localFont({
+  src: [{ path: "../fonts/montserrat/montserrat-variable-latin.woff2", weight: "400 900", style: "normal" }],
   display: "swap",
   variable: "--font-launch-mont",
 });
