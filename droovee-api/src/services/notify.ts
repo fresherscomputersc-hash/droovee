@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { BookingModel, CustomerModel, DriverModel, NotificationModel } from "../models";
-import { sendMail, bookingConfirmationMail, tripCompletedMail } from "./mail";
+import { config } from "../config";
+import { sendMail, bookingConfirmationMail, newBookingAlertMail, tripCompletedMail } from "./mail";
 
 export type BookingEvent =
   | "received"
@@ -109,6 +110,46 @@ export async function notifyBookingEvent(
   }
 }
 
+/**
+ * Owner alert: emails the client's inbox for a brand-new customer booking so a
+ * fresh request is seen without opening the admin console. Fire-and-forget from
+ * the booking route; logs to NotificationModel; never throws.
+ */
+export async function notifyAdminNewBooking(bookingId: Types.ObjectId | string): Promise<void> {
+  try {
+    if (!config.adminNotifyEnabled) return;
+    const b = await BookingModel.findById(bookingId).lean();
+    if (!b) return;
+    const customer = await CustomerModel.findById(b.customerId).select("name phone").lean();
+
+    const t = newBookingAlertMail({
+      bookingNumber: b.bookingNumber,
+      customerName: b.customerSnapshot?.name ?? customer?.name ?? "Customer",
+      customerPhone: b.customerSnapshot?.phone ?? customer?.phone ?? "—",
+      serviceType: b.serviceType,
+      start: b.scheduledStart,
+      pickup: b.pickup?.address ?? "",
+      destination: b.destination?.address ?? undefined,
+      carModel: b.carModel ?? undefined,
+      transmission: b.transmission ?? undefined,
+      durationHours: b.durationHours ?? undefined,
+      nights: b.nights || undefined,
+      couponCode: b.couponCode ?? undefined,
+      total: b.fareEstimate?.total ?? 0,
+      source: b.source ?? undefined,
+      adminUrl: `${config.webUrl}/admin/bookings/${b._id}`,
+    });
+
+    const sent = await sendMail(config.adminNotifyEmail, t.subject, t.text, t.html);
+    await logNotification(b._id as Types.ObjectId, "admin_new_booking", "email", config.adminNotifyEmail, sent, sent ? undefined : "smtp not configured or send failed");
+  } catch (e) {
+    // Notifications never break bookings — but never fail silently either.
+    console.error(
+      JSON.stringify({ level: "error", msg: "Owner new-booking alert failed", bookingId: String(bookingId), error: (e as Error).message }),
+    );
+  }
+}
+
 /** Driver display text for the driver_assigned message. */
 export async function driverTextFor(driverId: unknown): Promise<string | undefined> {
   if (!driverId) return undefined;
@@ -119,7 +160,7 @@ export async function driverTextFor(driverId: unknown): Promise<string | undefin
 /** Records that a customer message was (or wasn't) sent — e.g. the detailed confirmation mail. */
 export async function logNotification(
   bookingId: Types.ObjectId | string,
-  event: BookingEvent | "reminder",
+  event: BookingEvent | "reminder" | "admin_new_booking",
   channel: "email" | "whatsapp" | "sms",
   to: string,
   sent: boolean,
