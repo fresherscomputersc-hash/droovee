@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { AppError } from "../src/lib/errors";
-import { sendWakitOtp, verifyWakitOtp } from "../src/services/wakit";
+import { sendWakitOtp, sendWakitText, sendWakitTemplate, verifyWakitOtp } from "../src/services/wakit";
 
 const realFetch = globalThis.fetch;
 const envKeys = ["WAKIT_API_KEY", "WAKIT_BASE_URL", "WAKIT_TIMEOUT_MS", "OTP_TTL_MINUTES"] as const;
@@ -100,5 +100,60 @@ test("a missing Wakit key fails before any network call", async () => {
     () => sendWakitOtp("+919876543210"),
     (err: unknown) => err instanceof AppError && err.status === 500 && err.message === "WhatsApp OTP is not configured.",
   );
+  assert.equal(called, false);
+});
+
+test("sendWakitText posts Meta's free-form text shape", async () => {
+  let captured: { url: string; init: RequestInit } | undefined;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    captured = { url: String(url), init: init ?? {} };
+    return jsonResponse({ success: true, data: { id: "msg-1", contactId: "c-1", status: "queued" } }, 201);
+  }) as typeof fetch;
+
+  assert.equal(await sendWakitText("+919876543210", "New booking #DRV-ABC12345"), true);
+
+  assert.equal(captured?.url, "https://wakit.test/api/v1/messages");
+  assert.equal((captured?.init.headers as Record<string, string>).Authorization, "Bearer wk_test_unit");
+  assert.deepEqual(JSON.parse(String(captured?.init.body)), {
+    to: "+919876543210",
+    type: "text",
+    text: { body: "New booking #DRV-ABC12345" },
+  });
+});
+
+test("sendWakitTemplate posts the approved template name, language and params", async () => {
+  let captured: { url: string; init: RequestInit } | undefined;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    captured = { url: String(url), init: init ?? {} };
+    return jsonResponse({ success: true, data: { id: "msg-2", status: "queued" } }, 201);
+  }) as typeof fetch;
+
+  assert.equal(await sendWakitTemplate("+919876543210", "new_booking_alert", ["DRV-1", "hourly"], "en"), true);
+
+  assert.equal(captured?.url, "https://wakit.test/api/v1/messages/template");
+  assert.deepEqual(JSON.parse(String(captured?.init.body)), {
+    to: "+919876543210",
+    template: "new_booking_alert",
+    language: "en",
+    params: ["DRV-1", "hourly"],
+  });
+});
+
+test("message send failures return false instead of throwing", async () => {
+  globalThis.fetch = (async () =>
+    jsonResponse({ success: false, error: { type: "insufficient_balance" } }, 402)) as typeof fetch;
+
+  assert.equal(await sendWakitText("+919876543210", "hello"), false);
+});
+
+test("a missing Wakit key makes message sends a no-op", async () => {
+  delete process.env.WAKIT_API_KEY;
+  let called = false;
+  globalThis.fetch = (async () => {
+    called = true;
+    return jsonResponse({});
+  }) as typeof fetch;
+
+  assert.equal(await sendWakitText("+919876543210", "hello"), false);
   assert.equal(called, false);
 });

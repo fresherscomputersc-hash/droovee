@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { BookingModel, CustomerModel, DriverModel, NotificationModel } from "../models";
 import { config } from "../config";
 import { sendMail, bookingConfirmationMail, newBookingAlertMail, tripCompletedMail } from "./mail";
+import { sendWakitTemplate, sendWakitText } from "./wakit";
 
 export type BookingEvent =
   | "received"
@@ -111,13 +112,15 @@ export async function notifyBookingEvent(
 }
 
 /**
- * Owner alert: emails the client's inbox for a brand-new customer booking so a
- * fresh request is seen without opening the admin console. Fire-and-forget from
- * the booking route; logs to NotificationModel; never throws.
+ * Owner alert: a brand-new customer booking is sent to the owner on WhatsApp
+ * (same Wakit account as OTP), so a fresh request is seen without opening the
+ * admin console. Templates are used when configured because Meta only allows
+ * free-form text inside the 24-hour service window. When WhatsApp is not
+ * configured we fall back to the legacy owner email. Fire-and-forget from the
+ * booking route; logs to NotificationModel; never throws.
  */
 export async function notifyAdminNewBooking(bookingId: Types.ObjectId | string): Promise<void> {
   try {
-    if (!config.adminNotifyEnabled) return;
     const b = await BookingModel.findById(bookingId).lean();
     if (!b) return;
     const customer = await CustomerModel.findById(b.customerId).select("name phone").lean();
@@ -140,6 +143,34 @@ export async function notifyAdminNewBooking(bookingId: Types.ObjectId | string):
       adminUrl: `${config.webUrl}/admin/bookings/${b._id}`,
     });
 
+    if (config.adminWhatsappEnabled) {
+      const to = config.adminWhatsappNumber;
+      const template = config.wakitBookingTemplate;
+      let sent: boolean;
+      if (template) {
+        // Order matters: must match the approved template's placeholders.
+        const params = [
+          b.bookingNumber,
+          b.serviceType,
+          b.scheduledStart.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            dateStyle: "medium",
+            timeStyle: "short",
+          }) + " IST",
+          `${b.customerSnapshot?.name ?? customer?.name ?? "Customer"} (${b.customerSnapshot?.phone ?? customer?.phone ?? "—"})`,
+          String(b.fareEstimate?.total ?? 0),
+          `${config.webUrl}/admin/bookings/${b._id}`,
+        ];
+        sent = await sendWakitTemplate(to, template, params, config.wakitBookingTemplateLang);
+      } else {
+        sent = await sendWakitText(to, t.text);
+      }
+      await logNotification(b._id as Types.ObjectId, "admin_new_booking", "whatsapp", to, sent, sent ? undefined : "wakit send failed");
+      return;
+    }
+
+    // Legacy fallback: only while no owner WhatsApp number is configured.
+    if (!config.adminNotifyEnabled) return;
     const sent = await sendMail(config.adminNotifyEmail, t.subject, t.text, t.html);
     await logNotification(b._id as Types.ObjectId, "admin_new_booking", "email", config.adminNotifyEmail, sent, sent ? undefined : "smtp not configured or send failed");
   } catch (e) {

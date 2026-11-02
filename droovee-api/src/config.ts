@@ -104,7 +104,30 @@ export const config = {
     return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";
   },
   /**
-   * Owner inbox that gets an email for every new customer booking.
+   * Owner WhatsApp number for the new-booking alert, in E.164 format
+   * (e.g. +919876543210). Uses the same WAKIT_API_KEY as OTP.
+   * Empty = WhatsApp alert off; the email fallback below applies instead.
+   */
+  get adminWhatsappNumber(): string {
+    return (process.env.ADMIN_WHATSAPP_NUMBER ?? "").trim();
+  },
+  get adminWhatsappEnabled(): boolean {
+    return this.adminWhatsappNumber !== "" && this.wakitApiKey !== "";
+  },
+  /**
+   * Optional approved Wakit template for the owner alert. Templates reach the
+   * owner outside the 24-hour WhatsApp window; unset = free-form text (which
+   * only delivers if the owner messaged the business number in the last 24h).
+   * Parameter order is documented in notify.ts and .env.example.
+   */
+  get wakitBookingTemplate(): string {
+    return (process.env.WAKIT_BOOKING_TEMPLATE ?? "").trim();
+  },
+  get wakitBookingTemplateLang(): string {
+    return process.env.WAKIT_BOOKING_TEMPLATE_LANG?.trim() || "en";
+  },
+  /**
+   * Legacy owner inbox. Only used when ADMIN_WHATSAPP_NUMBER is unset.
    * Unset = the client's Gmail; set ADMIN_NOTIFY_EMAIL="" to switch alerts off.
    */
   get adminNotifyEmail(): string {

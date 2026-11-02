@@ -107,12 +107,19 @@ before(async () => {
   process.env.OTP_RESEND_COOLDOWN_SECONDS = "0";
   process.env.TOKEN_PEPPER = "test-pepper";
   process.env.JWT_ACCESS_SECRET = "test-access-secret";
-  // Email under test: SMTP is off and the owner inbox is pinned, so the suite
-  // never sends real mail and the alert assertions are deterministic.
+  // Email under test: SMTP is off so no mail is ever sent.
   process.env.SMTP_HOST = "";
   process.env.SMTP_USER = "";
   process.env.SMTP_PASS = "";
-  process.env.ADMIN_NOTIFY_EMAIL = "droovee.admin@gmail.com";
+  // Owner alerts go out on WhatsApp through Wakit. They stay switched off for
+  // the suite by default; the alert test enables them against a stubbed Wakit,
+  // so no test ever spends credit or touches the network.
+  process.env.ADMIN_WHATSAPP_NUMBER = "";
+  process.env.ADMIN_NOTIFY_EMAIL = "";
+  process.env.WAKIT_API_KEY = "wk_test_unit";
+  process.env.WAKIT_BASE_URL = "https://wakit.test/api/v1";
+  delete process.env.WAKIT_BOOKING_TEMPLATE;
+  delete process.env.WAKIT_TIMEOUT_MS;
 
   // CI/local default: throwaway in-memory replica set. On machines where the
   // memory-server binary starts too slowly, point at an external replica set:
@@ -268,42 +275,75 @@ test("booking: customer creates a booking with password-only login", async () =>
   assert.equal(created.body.estimate.total, 228);
 });
 
-test("owner alert: a new customer booking emails the owner's inbox; staff bookings do not", async () => {
+test("owner alert: a new customer booking messages the owner on WhatsApp; staff bookings do not", async () => {
   const token = await registerCustomer("9812400005", "Alert Customer");
-  const created = await call("POST", "/api/v1/bookings", token, bookingBody(SLOT_B));
-  assert.equal(created.status, 201, JSON.stringify(created.body));
 
-  // The alert is fire-and-forget: poll briefly for the notification log row.
-  let row: Json | null = null;
-  for (let i = 0; i < 60 && !row; i++) {
-    row = (await models.NotificationModel.findOne({ bookingId: created.body.id, event: "admin_new_booking" }).lean()) as Json | null;
-    if (!row) await new Promise((r) => setTimeout(r, 50));
-  }
-  assert.ok(row, "owner alert must be logged for a new customer booking");
-  assert.equal(row!.to, "droovee.admin@gmail.com");
-  assert.equal(row!.channel, "email");
-  assert.equal(row!.sent, false, "SMTP is off in tests, so the skipped send is recorded");
+  // Only this test enables the owner alert.
+  const savedNumber = process.env.ADMIN_WHATSAPP_NUMBER;
+  process.env.ADMIN_WHATSAPP_NUMBER = "+919811100000";
 
-  // Staff-created bookings are dispatched inside the console: no owner email.
-  const owner = await staffLogin("owner@droovee.test");
-  const staffMade = await call("POST", "/api/v1/admin/bookings", owner, {
-    name: "Staff Made",
-    phone: "9812400006",
-    serviceType: "hourly",
-    pickupAddress: "Patia, Bhubaneswar",
-    scheduledStart: "2030-09-01T10:00:00+05:30",
-    durationHours: 2,
-    carModel: "Maruti Swift",
-    transmission: "manual",
-    source: "call",
-  });
-  assert.equal(staffMade.status, 201, JSON.stringify(staffMade.body));
-  // Poll for absence over a window longer than the positive path, so a slow
-  // regression (rather than a fast one) still fails this assertion.
-  for (let i = 0; i < 30; i++) {
-    const staffRow = await models.NotificationModel.findOne({ bookingId: staffMade.body.id, event: "admin_new_booking" }).lean();
-    assert.equal(staffRow, null, "staff bookings must not trigger the owner alert");
-    await new Promise((r) => setTimeout(r, 50));
+  // The API runs in this process, so stubbing fetch catches its Wakit call while
+  // localhost calls (the test's own requests) pass through untouched.
+  const realFetch = globalThis.fetch;
+  const wakitCalls: { url: string; body: Json }[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith("https://wakit.test/")) {
+      wakitCalls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : {} });
+      return new Response(JSON.stringify({ success: true, data: { id: "msg-1", status: "queued" } }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    const created = await call("POST", "/api/v1/bookings", token, bookingBody(SLOT_B));
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+
+    // The alert is fire-and-forget: poll briefly for the notification log row.
+    let row: Json | null = null;
+    for (let i = 0; i < 60 && !row; i++) {
+      row = (await models.NotificationModel.findOne({ bookingId: created.body.id, event: "admin_new_booking" }).lean()) as Json | null;
+      if (!row) await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.ok(row, "owner alert must be logged for a new customer booking");
+    assert.equal(row!.to, "+919811100000");
+    assert.equal(row!.channel, "whatsapp");
+    assert.equal(row!.sent, true, "the stubbed Wakit send succeeds");
+
+    assert.equal(wakitCalls.length, 1, "exactly one WhatsApp message per customer booking");
+    assert.equal(wakitCalls[0].url, "https://wakit.test/api/v1/messages");
+    assert.equal(wakitCalls[0].body.to, "+919811100000");
+    assert.equal(wakitCalls[0].body.type, "text");
+    assert.match(wakitCalls[0].body.text.body, new RegExp(created.body.bookingNumber));
+
+    // Staff-created bookings are dispatched inside the console: no owner alert.
+    const owner = await staffLogin("owner@droovee.test");
+    const staffMade = await call("POST", "/api/v1/admin/bookings", owner, {
+      name: "Staff Made",
+      phone: "9812400006",
+      serviceType: "hourly",
+      pickupAddress: "Patia, Bhubaneswar",
+      scheduledStart: "2030-09-01T10:00:00+05:30",
+      durationHours: 2,
+      carModel: "Maruti Swift",
+      transmission: "manual",
+      source: "call",
+    });
+    assert.equal(staffMade.status, 201, JSON.stringify(staffMade.body));
+    // Poll for absence over a window longer than the positive path, so a slow
+    // regression (rather than a fast one) still fails this assertion.
+    for (let i = 0; i < 30; i++) {
+      const staffRow = await models.NotificationModel.findOne({ bookingId: staffMade.body.id, event: "admin_new_booking" }).lean();
+      assert.equal(staffRow, null, "staff bookings must not trigger the owner alert");
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+    if (savedNumber === undefined) delete process.env.ADMIN_WHATSAPP_NUMBER;
+    else process.env.ADMIN_WHATSAPP_NUMBER = savedNumber;
   }
 });
 

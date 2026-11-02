@@ -127,3 +127,76 @@ export async function verifyWakitOtp(id: string, code: string): Promise<boolean>
   const data = await post<WakitVerifyData>("/otp/verify", { id, code }, "verify");
   return data.verified === true;
 }
+
+/** Shape Wakit returns for /messages and /messages/template sends. */
+type WakitMessageData = {
+  id?: string;
+  contactId?: string;
+  status?: string;
+};
+
+/**
+ * Posts a message send. Unlike OTP, a failed owner alert must never throw into
+ * the request path, so this returns false and logs the reason instead.
+ * Never logs the recipient or the message body (both are personal data).
+ */
+async function sendMessage(path: string, body: unknown): Promise<boolean> {
+  const apiKey = config.wakitApiKey;
+  if (!apiKey) {
+    console.error(JSON.stringify({ level: "error", msg: "Wakit message skipped (no API key)", path }));
+    return false;
+  }
+
+  let res: Awaited<ReturnType<typeof fetch>>;
+  try {
+    res = await fetch(`${config.wakitBaseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(config.wakitTimeoutMs),
+    });
+  } catch (err) {
+    console.error(JSON.stringify({ level: "error", msg: "Wakit message request failed", path, error: (err as Error).message }));
+    return false;
+  }
+
+  let json: WakitEnvelope<WakitMessageData> | null = null;
+  try {
+    json = (await res.json()) as WakitEnvelope<WakitMessageData>;
+  } catch {
+    /* fall through to the status/error handling below */
+  }
+
+  if (!res.ok || !json?.success) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        msg: "Wakit message rejected",
+        path,
+        status: res.status,
+        type: json?.error?.type,
+        code: json?.error?.code,
+      }),
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Sends a free-form WhatsApp text via POST /messages.
+ * Meta only delivers these inside the 24-hour service window (the recipient
+ * must have messaged the business number recently); use a template otherwise.
+ */
+export async function sendWakitText(to: string, text: string): Promise<boolean> {
+  return sendMessage("/messages", { to, type: "text", text: { body: text } });
+}
+
+/** Sends an approved WhatsApp template via POST /messages/template (works anytime). */
+export async function sendWakitTemplate(to: string, template: string, params: string[], language = "en"): Promise<boolean> {
+  return sendMessage("/messages/template", { to, template, language, params });
+}
