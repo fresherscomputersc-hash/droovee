@@ -104,7 +104,36 @@ export const config = {
     return this.smtpHost !== "" && this.smtpUser !== "" && this.smtpPass !== "";
   },
   /**
-   * Owner inbox that gets an email for every new customer booking.
+   * Owner WhatsApp number(s) for the new-booking alert, comma or space
+   * separated. 10-digit Indian numbers get the +91 prefix added; full E.164
+   * values (e.g. +919876543210) pass through. Uses the same WAKIT_API_KEY as
+   * OTP. Empty = WhatsApp alert off; the email fallback below applies instead.
+   */
+  get adminWhatsappNumbers(): string[] {
+    const raw = (process.env.ADMIN_WHATSAPP_NUMBER ?? "")
+      .split(/[,\s]+/)
+      .map((v) => v.replace(/[^\d+]/g, ""))
+      .filter(Boolean)
+      .map((v) => (v.startsWith("+") ? v : v.length === 10 ? `+91${v}` : `+${v}`));
+    return [...new Set(raw)];
+  },
+  get adminWhatsappEnabled(): boolean {
+    return this.adminWhatsappNumbers.length > 0 && this.wakitApiKey !== "";
+  },
+  /**
+   * Optional approved Wakit template for the owner alert. Templates reach the
+   * owner outside the 24-hour WhatsApp window; unset = free-form text (which
+   * only delivers if the owner messaged the business number in the last 24h).
+   * Parameter order is documented in notify.ts and .env.example.
+   */
+  get wakitBookingTemplate(): string {
+    return (process.env.WAKIT_BOOKING_TEMPLATE ?? "").trim();
+  },
+  get wakitBookingTemplateLang(): string {
+    return process.env.WAKIT_BOOKING_TEMPLATE_LANG?.trim() || "en";
+  },
+  /**
+   * Legacy owner inbox. Only used when ADMIN_WHATSAPP_NUMBER is unset.
    * Unset = the client's Gmail; set ADMIN_NOTIFY_EMAIL="" to switch alerts off.
    */
   get adminNotifyEmail(): string {
