@@ -1309,3 +1309,34 @@ test("monthly plans: carry-over, staff attendance, customer read-only view and d
   assert.equal(auditRows.status, 200);
   assert.ok(auditRows.body.items.some((a: Json) => a.entityId === `${liveId}:${today}`));
 });
+
+
+test("the bookings list puts the newest booking at the top", async () => {
+  const older = await registerCustomer("9812300401", "Order Older");
+  const newer = await registerCustomer("9812300402", "Order Newer");
+  const first = await call(
+    "POST",
+    "/api/v1/bookings",
+    older,
+    bookingBody({ start: "2031-07-01T10:00:00+05:30", end: "2031-07-01T12:00:00+05:30" }),
+  );
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  // createdLater must sort first even though it is scheduled later.
+  await new Promise((r) => setTimeout(r, 20));
+  const second = await call(
+    "POST",
+    "/api/v1/bookings",
+    newer,
+    bookingBody({ start: "2031-07-05T10:00:00+05:30", end: "2031-07-05T12:00:00+05:30" }),
+  );
+  assert.equal(second.status, 201, JSON.stringify(second.body));
+
+  const owner = await staffLogin("owner@droovee.test");
+  const list = await call("GET", "/api/v1/admin/bookings?limit=200", owner);
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+  const idxOlder = list.body.items.findIndex((b: Json) => b.bookingNumber === first.body.bookingNumber);
+  const idxNewer = list.body.items.findIndex((b: Json) => b.bookingNumber === second.body.bookingNumber);
+  assert.ok(idxOlder >= 0 && idxNewer >= 0, "both bookings must be in the list");
+  assert.ok(idxNewer < idxOlder, "the newest booking must appear above the older one");
+  assert.equal(idxNewer, 0, "the most recently created booking is first");
+});
