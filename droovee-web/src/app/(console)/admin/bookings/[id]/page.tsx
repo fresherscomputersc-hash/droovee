@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Empty, Field, Input, PageTitle, Select, StatusBadge, Table } from "@/components/ui";
 import { can } from "@/components/AdminShell";
@@ -25,6 +25,7 @@ type Conflict = { kind: string; ref?: string; start: string; end: string };
 
 export default function AdminBookingDetail() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params.id;
   const role = getSession()?.role;
   const [b, setB] = useState<any | null>(null);
@@ -50,6 +51,10 @@ export default function AdminBookingDetail() {
 
   // Contact, fare, payment
   const [channel, setChannel] = useState<"call" | "whatsapp">("call");
+  // Archive / delete (housekeeping)
+  const [archiveReason, setArchiveReason] = useState("");
+  const [confirmNumber, setConfirmNumber] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
   // Driver link + trip codes (Phase 3)
   const [links, setLinks] = useState<{ driverToken?: string; shareToken?: string; tripCodeStart?: string; tripCodeEnd?: string } | null>(null);
 
@@ -158,11 +163,55 @@ export default function AdminBookingDetail() {
     }
   }
 
+  async function archiveBooking() {
+    const ok = await run(
+      () =>
+        api(`/admin/bookings/${id}/archive`, {
+          method: "PATCH",
+          body: { expectedVersion: b.version, reason: archiveReason.trim() || undefined },
+        }),
+      "Booking archived. It is hidden from staff lists; the customer still sees it.",
+    );
+    if (ok) setArchiveReason("");
+  }
+
+  async function restoreBooking() {
+    await run(
+      () => api(`/admin/bookings/${id}/restore`, { method: "PATCH", body: { expectedVersion: b.version } }),
+      "Booking restored to the bookings list.",
+    );
+  }
+
+  async function deleteBooking() {
+    if (!window.confirm(`Permanently delete ${b.bookingNumber}? This cannot be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/admin/bookings/${id}`, {
+        method: "DELETE",
+        body: {
+          expectedVersion: b.version,
+          confirmBookingNumber: confirmNumber.trim().toUpperCase(),
+          reason: deleteReason.trim(),
+        },
+      });
+      router.push("/admin/bookings");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the booking.");
+      if (e instanceof ApiError && e.status === 409) await load().catch(() => {});
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error && !b) return <Alert>{error}</Alert>;
   if (!b) return <p className="text-sm text-slate-500">Loading…</p>;
 
   const needsReason = ["cancelled", "rejected", "customer_no_show"].includes(toStatus);
   const confirmed = b.contactLog?.some((c: any) => c.result === "confirmed");
+  // Mirrors the server rule: closures that never touched money can be deleted.
+  const deletable = ["cancelled", "rejected"].includes(b.status) && b.finalFare == null && payments.length === 0;
 
   return (
     <>
@@ -170,7 +219,12 @@ export default function AdminBookingDetail() {
       <PageTitle
         title={b.bookingNumber}
         subtitle={`${SERVICE_LABEL[b.serviceType]} · ${dateTime(b.scheduledStart)} → ${dateTime(b.scheduledEnd)}`}
-        actions={<StatusBadge status={b.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            {b.archivedAt && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">Archived</span>}
+            <StatusBadge status={b.status} />
+          </div>
+        }
       />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       {notice && <div className="mb-4"><Alert tone="success">{notice}</Alert></div>}
@@ -382,6 +436,72 @@ export default function AdminBookingDetail() {
                   )}
                   <Button type="submit" disabled={!toStatus || busy || (needsReason && statusReason.trim().length < 3)}>Update status</Button>
                 </form>
+              )}
+            </Card>
+          )}
+
+          {(can(role, "bookings:archive") || can(role, "bookings:delete")) && (
+            <Card>
+              <h2 className="font-semibold">Archive & delete</h2>
+              {b.archivedAt ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Archived {dateTime(b.archivedAt)}
+                    {b.archiveReason ? ` — ${b.archiveReason}` : ""}. The customer still sees this booking.
+                  </p>
+                  {can(role, "bookings:archive") && (
+                    <Button variant="secondary" className="mt-3" disabled={busy} onClick={restoreBooking}>
+                      Restore to bookings list
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Archiving hides this booking from staff lists, queues and the dashboard. Nothing is deleted, and you can restore it anytime.
+                  </p>
+                  {can(role, "bookings:archive") && (
+                    <div className="mt-3 space-y-3">
+                      <Field label="Reason (optional)" hint="Recorded in the audit log.">
+                        <Input value={archiveReason} onChange={(e) => setArchiveReason(e.target.value)} placeholder="e.g. Duplicate test booking" />
+                      </Field>
+                      <Button variant="secondary" disabled={busy} onClick={archiveBooking}>Archive booking</Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {can(role, "bookings:delete") && (
+                <div className="mt-6 border-t border-slate-100 pt-4">
+                  <p className="text-sm font-medium text-rose-700">Delete permanently</p>
+                  {deletable ? (
+                    <>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Removes the booking for good. Allowed only because it is {STATUS_LABEL[b.status]?.toLowerCase()} with no fare and no payments.
+                        Type the booking number to confirm.
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        <Field label={`Type ${b.bookingNumber} to confirm`}>
+                          <Input value={confirmNumber} onChange={(e) => setConfirmNumber(e.target.value.toUpperCase())} placeholder={b.bookingNumber} />
+                        </Field>
+                        <Field label="Reason" hint="Required. Recorded in the audit log.">
+                          <Input value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} />
+                        </Field>
+                        <Button
+                          variant="danger"
+                          disabled={busy || confirmNumber.trim().toUpperCase() !== b.bookingNumber || deleteReason.trim().length < 5}
+                          onClick={deleteBooking}
+                        >
+                          Delete booking permanently
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-600">
+                      Only cancelled or rejected bookings with no fare and no payments can be deleted. Archive this one instead.
+                    </p>
+                  )}
+                </div>
               )}
             </Card>
           )}

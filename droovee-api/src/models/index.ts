@@ -287,6 +287,15 @@ const bookingSchema = new Schema(
       settledBy: Schema.Types.ObjectId,
       settlementRef: String,
     },
+    /**
+     * Staff housekeeping. An archived booking stays in the database and the
+     * customer still sees it; it only drops out of admin lists and queues.
+     * `null` (not a missing field) means "not archived" so the default list
+     * filter matches both legacy rows and new ones.
+     */
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    archiveReason: { type: String, maxlength: 300 },
     version: { type: Number, default: 0 },
   },
   opts,
@@ -294,6 +303,7 @@ const bookingSchema = new Schema(
 bookingSchema.index({ customerId: 1, createdAt: -1 });
 bookingSchema.index({ status: 1, scheduledStart: 1 });
 bookingSchema.index({ driverId: 1, scheduledStart: 1 });
+bookingSchema.index({ archivedAt: 1, scheduledStart: 1 });
 export const BookingModel = model("Booking", bookingSchema);
 
 // ---------- Payments (ledger) ----------

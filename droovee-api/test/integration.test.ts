@@ -39,9 +39,20 @@ async function registerCustomer(phone: string, name: string) {
   return reg.body.accessToken as string;
 }
 
-async function staffLogin(email: string) {
+/**
+ * Staff tokens are cached per email: the API throttles password logins to 10
+ * per account per 15 minutes, and this suite signs in far more often than that.
+ * Nothing in the suite depends on a second login, so one token per account is
+ * enough.
+ */
+const staffTokens = new Map<string, string>();
+
+async function staffLogin(email: string, opts: { fresh?: boolean } = {}) {
+  const cached = opts.fresh ? undefined : staffTokens.get(email);
+  if (cached) return cached;
   const r = await call("POST", "/api/v1/auth/staff/login", undefined, { email, password: "Staff-password-123" });
   assert.equal(r.status, 200, JSON.stringify(r.body));
+  staffTokens.set(email, r.body.accessToken as string);
   return r.body.accessToken as string;
 }
 
@@ -649,8 +660,12 @@ test("disabled staff lose access on the next request", async () => {
   const off = await call("PATCH", `/api/v1/admin/staff/${opsDoc!._id}`, owner, { active: false });
   assert.equal(off.status, 200);
   assert.equal((await call("GET", "/api/v1/admin/bookings", ops)).status, 401);
-  // The refresh chain is dead too — no silent re-entry after disable.
+  // The refresh chain is dead too - no silent re-entry after disable.
   assert.equal((await call("POST", "/api/v1/auth/refresh", undefined, { refreshToken: opsRefresh })).status, 401);
+  // Restore the shared fixture for the tests that follow (a fresh login is
+  // still required: re-enabling bumps the token version).
+  const on = await call("PATCH", `/api/v1/admin/staff/${opsDoc!._id}`, owner, { active: true });
+  assert.equal(on.status, 200);
 });
 
 test("audit log records assignment, override and status change", async () => {
@@ -895,4 +910,157 @@ test("driver portal: own trips only, leave lifecycle, and expired-session reject
   const cancelAudit = await call("GET", "/api/v1/admin/audit-logs?action=availability.request_cancel", owner);
   assert.equal(cancelAudit.status, 200);
   assert.ok(cancelAudit.body.items.some((a: Json) => a.entityId === secondId));
+});
+
+test("archive hides a booking from staff lists only, and restore brings it back", async () => {
+  const custToken = await registerCustomer("9812300201", "Archive Tester");
+  const made = await call(
+    "POST",
+    "/api/v1/bookings",
+    custToken,
+    bookingBody({ start: "2031-04-01T10:00:00+05:30", end: "2031-04-01T12:00:00+05:30" }),
+  );
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const id = made.body.id as string;
+  const number = made.body.bookingNumber as string;
+
+  const owner = await staffLogin("owner@droovee.test");
+  const before = await call("GET", `/api/v1/admin/bookings?bookingNumber=${number}`, owner);
+  assert.equal(before.status, 200, JSON.stringify(before.body));
+  assert.equal(before.body.total, 1);
+
+  const archived = await adminWrite("PATCH", `/api/v1/admin/bookings/${id}/archive`, owner, id, { reason: "Test cleanup" });
+  assert.equal(archived.status, 200, JSON.stringify(archived.body));
+
+  // Hidden from the default staff list�
+  const hidden = await call("GET", `/api/v1/admin/bookings?bookingNumber=${number}`, owner);
+  assert.equal(hidden.status, 200);
+  assert.equal(hidden.body.total, 0);
+
+  // �still reachable through the archived filter, with the reason kept.
+  const archivedList = await call("GET", `/api/v1/admin/bookings?bookingNumber=${number}&archived=true`, owner);
+  assert.equal(archivedList.status, 200);
+  assert.equal(archivedList.body.total, 1);
+  assert.ok(archivedList.body.items[0].archivedAt, "archived rows carry archivedAt");
+  const detail = await call("GET", `/api/v1/admin/bookings/${id}`, owner);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.archiveReason, "Test cleanup");
+
+  // The customer's own history is untouched: archiving is staff housekeeping.
+  const mine = await call("GET", "/api/v1/bookings/my", custToken);
+  assert.equal(mine.status, 200, JSON.stringify(mine.body));
+  assert.ok(mine.body.items.some((b: Json) => b.id === id));
+
+  // Archiving twice is a conflict, not a silent overwrite.
+  const again = await adminWrite("PATCH", `/api/v1/admin/bookings/${id}/archive`, owner, id, {});
+  assert.equal(again.status, 409, JSON.stringify(again.body));
+
+  const restored = await adminWrite("PATCH", `/api/v1/admin/bookings/${id}/restore`, owner, id, {});
+  assert.equal(restored.status, 200, JSON.stringify(restored.body));
+  const back = await call("GET", `/api/v1/admin/bookings?bookingNumber=${number}`, owner);
+  assert.equal(back.status, 200);
+  assert.equal(back.body.total, 1);
+
+  // Restoring twice is also a conflict.
+  const restoreAgain = await adminWrite("PATCH", `/api/v1/admin/bookings/${id}/restore`, owner, id, {});
+  assert.equal(restoreAgain.status, 409, JSON.stringify(restoreAgain.body));
+
+  const archiveAudit = await call("GET", "/api/v1/admin/audit-logs?action=booking.archive", owner);
+  assert.equal(archiveAudit.status, 200);
+  assert.ok(archiveAudit.body.items.some((a: Json) => a.entityId === id));
+  const restoreAudit = await call("GET", "/api/v1/admin/audit-logs?action=booking.restore", owner);
+  assert.equal(restoreAudit.status, 200);
+  assert.ok(restoreAudit.body.items.some((a: Json) => a.entityId === id));
+});
+
+test("delete needs the owner, the typed booking number and a clean money trail", async () => {
+  const custToken = await registerCustomer("9812300202", "Delete Tester");
+  const made = await call(
+    "POST",
+    "/api/v1/bookings",
+    custToken,
+    bookingBody({ start: "2031-04-05T10:00:00+05:30", end: "2031-04-05T12:00:00+05:30" }),
+  );
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const id = made.body.id as string;
+  const number = made.body.bookingNumber as string;
+
+  const owner = await staffLogin("owner@droovee.test");
+  // Fresh: the disable/enable test earlier bumps ops' token version.
+  const ops = await staffLogin("ops@droovee.test", { fresh: true });
+
+  // A live request is not deletable: cancel or reject it first.
+  const live = await adminWrite("DELETE", `/api/v1/admin/bookings/${id}`, owner, id, {
+    confirmBookingNumber: number,
+    reason: "Testing the guardrail",
+  });
+  assert.equal(live.status, 409, JSON.stringify(live.body));
+
+  // Operations may archive, never delete.
+  const opsDelete = await adminWrite("DELETE", `/api/v1/admin/bookings/${id}`, ops, id, {
+    confirmBookingNumber: number,
+    reason: "Testing the guardrail",
+  });
+  assert.equal(opsDelete.status, 403, JSON.stringify(opsDelete.body));
+
+  const cancelled = await adminWrite("PATCH", `/api/v1/admin/bookings/${id}/status`, owner, id, {
+    to: "cancelled",
+    reason: "Customer called to cancel",
+  });
+  assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+
+  // The typed booking number must match exactly.
+  const wrongNumber = await adminWrite("DELETE", `/api/v1/admin/bookings/${id}`, owner, id, {
+    confirmBookingNumber: "BOOK-00000000",
+    reason: "Testing the guardrail",
+  });
+  assert.equal(wrongNumber.status, 409, JSON.stringify(wrongNumber.body));
+
+  // A recorded payment freezes the booking: archive only.
+  const paid = await call("POST", `/api/v1/admin/bookings/${id}/offline-payment`, owner, { amount: 150, method: "cash" });
+  assert.equal(paid.status, 201, JSON.stringify(paid.body));
+  const blocked = await adminWrite("DELETE", `/api/v1/admin/bookings/${id}`, owner, id, {
+    confirmBookingNumber: number,
+    reason: "Testing the guardrail",
+  });
+  assert.equal(blocked.status, 409, JSON.stringify(blocked.body));
+  assert.match(blocked.body.message, /Payments are recorded/);
+
+  // A second booking with no money changes hands can be deleted for real.
+  const clean = await call(
+    "POST",
+    "/api/v1/bookings",
+    custToken,
+    bookingBody({ start: "2031-04-06T10:00:00+05:30", end: "2031-04-06T12:00:00+05:30" }),
+  );
+  assert.equal(clean.status, 201, JSON.stringify(clean.body));
+  const cleanId = clean.body.id as string;
+  const cleanNumber = clean.body.bookingNumber as string;
+  const cleanCancelled = await adminWrite("PATCH", `/api/v1/admin/bookings/${cleanId}/status`, owner, cleanId, {
+    to: "cancelled",
+    reason: "Duplicate request",
+  });
+  assert.equal(cleanCancelled.status, 200, JSON.stringify(cleanCancelled.body));
+
+  const deleted = await adminWrite("DELETE", `/api/v1/admin/bookings/${cleanId}`, owner, cleanId, {
+    confirmBookingNumber: cleanNumber,
+    reason: "Duplicate request, nothing billed",
+  });
+  assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+  assert.equal(deleted.body.deleted, true);
+
+  const gone = await call("GET", `/api/v1/admin/bookings/${cleanId}`, owner);
+  assert.equal(gone.status, 404);
+  const mine = await call("GET", "/api/v1/bookings/my", custToken);
+  assert.ok(!mine.body.items.some((b: Json) => b.id === cleanId));
+
+  // The audit row explains the gap but keeps no customer PII.
+  const deleteAudit = await call("GET", "/api/v1/admin/audit-logs?action=booking.delete", owner);
+  assert.equal(deleteAudit.status, 200);
+  const row = deleteAudit.body.items.find((a: Json) => a.entityId === cleanId);
+  assert.ok(row, "deletion is audited");
+  assert.equal(row.before.bookingNumber, cleanNumber);
+  assert.equal(row.reason, "Duplicate request, nothing billed");
+  assert.ok(!JSON.stringify(row).includes("Delete Tester"), "audit must not keep the customer name");
+  assert.ok(!JSON.stringify(row).includes("9812300202"), "audit must not keep the customer phone");
 });
