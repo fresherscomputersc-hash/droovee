@@ -8,12 +8,13 @@ import { dateTime, money, SERVICE_LABEL, STATUS_LABEL } from "@/lib/format";
 const STATUSES = Object.keys(STATUS_LABEL);
 const SERVICES = Object.keys(SERVICE_LABEL);
 
-type SearchOverrides = { status?: string; assigned?: string };
+type SearchOverrides = { status?: string; assigned?: string; archived?: boolean };
 
 export default function AdminBookingsPage() {
   const [status, setStatus] = useState("");
   const [service, setService] = useState("");
   const [assigned, setAssigned] = useState("");
+  const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [bookingNumber, setBookingNumber] = useState("");
   const [phone, setPhone] = useState("");
@@ -29,10 +30,12 @@ export default function AdminBookingsPage() {
     setError(null);
     const st = overrides.status ?? status;
     const asg = overrides.assigned ?? assigned;
+    const arc = overrides.archived ?? archived;
     const qs = new URLSearchParams({ limit: String(LIMIT), page: String(p) });
     if (st) qs.set("status", st);
     if (service) qs.set("serviceType", service);
     if (asg) qs.set("assigned", asg);
+    if (arc) qs.set("archived", "true");
     if (query.trim()) qs.set("q", query.trim());
     if (bookingNumber.trim()) qs.set("bookingNumber", bookingNumber.trim());
     if (phone.trim()) qs.set("customerPhone", phone.trim());
@@ -64,7 +67,7 @@ export default function AdminBookingsPage() {
           <button
             key={s || "all"}
             type="button"
-            onClick={() => { setStatus(s); search(1, { status: s }); }}
+            onClick={() => { setStatus(s); search(1, { status: s, archived }); }}
             className={`rounded-full px-3 py-1 text-xs ring-1 ${status === s ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white ring-slate-300"}`}
           >
             {s === "" ? "All" : STATUS_LABEL[s]}
@@ -77,6 +80,14 @@ export default function AdminBookingsPage() {
           title="Bookings that still need a driver"
         >
           Waiting for driver
+        </button>
+        <button
+          type="button"
+          onClick={() => { const next = !archived; setArchived(next); search(1, { archived: next }); }}
+          className={`rounded-full px-3 py-1 text-xs ring-1 ${archived ? "bg-slate-700 text-white ring-slate-700" : "bg-white ring-slate-300"}`}
+          title="Bookings hidden from the normal list. Nothing is deleted."
+        >
+          {archived ? "Viewing archived" : "Archived"}
         </button>
       </div>
       <form
@@ -136,8 +147,11 @@ export default function AdminBookingsPage() {
         <>
           <Table head={["Booking", "Customer", "Service", "Start", "Driver", "Fare", "Status"]}>
             {items.map((b) => (
-              <tr key={b.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3"><Link href={`/admin/bookings/${b.id}`} className="font-mono text-emerald-700 hover:underline">{b.bookingNumber}</Link></td>
+              <tr key={b.id} className={b.archivedAt ? "bg-slate-50 text-slate-500" : "hover:bg-slate-50"}>
+                <td className="px-4 py-3">
+                  <Link href={`/admin/bookings/${b.id}`} className="font-mono text-emerald-700 hover:underline">{b.bookingNumber}</Link>
+                  {b.archivedAt && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">Archived</span>}
+                </td>
                 <td className="px-4 py-3">{b.customer?.name}<div className="text-xs text-slate-500">{b.customer?.phone}</div></td>
                 <td className="px-4 py-3">{SERVICE_LABEL[b.serviceType]}</td>
                 <td className="px-4 py-3">{dateTime(b.scheduledStart)}</td>

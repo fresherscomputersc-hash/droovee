@@ -74,11 +74,11 @@ adminRouter.get("/dashboard", requirePermission("bookings:read"), async (_req, r
   const dayStart = new Date(istStart.getTime() - 330 * 60_000);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   const [todayBookings, completedToday, pendingAssignment, pendingReview, cancelRequests] = await Promise.all([
-    BookingModel.countDocuments({ scheduledStart: { $gte: dayStart, $lt: dayEnd } }),
-    BookingModel.countDocuments({ status: "completed", updatedAt: { $gte: dayStart, $lt: dayEnd } }),
-    BookingModel.countDocuments({ status: "confirmed" }),
-    BookingModel.countDocuments({ status: "requested" }),
-    BookingModel.countDocuments({ "cancellation.requestedAt": { $exists: true }, status: { $nin: ["cancelled", "completed"] } }),
+    BookingModel.countDocuments({ scheduledStart: { $gte: dayStart, $lt: dayEnd }, archivedAt: null }),
+    BookingModel.countDocuments({ status: "completed", updatedAt: { $gte: dayStart, $lt: dayEnd }, archivedAt: null }),
+    BookingModel.countDocuments({ status: "confirmed", archivedAt: null }),
+    BookingModel.countDocuments({ status: "requested", archivedAt: null }),
+    BookingModel.countDocuments({ "cancellation.requestedAt": { $exists: true }, status: { $nin: ["cancelled", "completed"] }, archivedAt: null }),
   ]);
   const drivers = await DriverModel.find({ employmentStatus: "active" }).select("_id").lean();
   res.json({
@@ -101,15 +101,15 @@ adminRouter.get("/alerts", requirePermission("bookings:read"), async (_req, res)
 
   const [unassigned10, urgent, schedule, lowRatings, business] = await Promise.all([
     // Requested/confirmed, created >10 min ago, still no driver.
-    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, createdAt: { $lt: tenMinAgo } })
+    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, createdAt: { $lt: tenMinAgo }, archivedAt: null })
       .sort({ scheduledStart: 1 }).limit(50)
       .select("bookingNumber status scheduledStart customerSnapshot pickup").lean(),
     // Starting within 2 hours with no driver — red warning.
-    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, scheduledStart: { $gte: now, $lt: twoHoursAhead } })
+    BookingModel.find({ status: { $in: ["requested", "confirmed"] }, driverId: { $exists: false }, scheduledStart: { $gte: now, $lt: twoHoursAhead }, archivedAt: null })
       .sort({ scheduledStart: 1 }).limit(50)
       .select("bookingNumber status scheduledStart customerSnapshot pickup").lean(),
     // Today's schedule: who is on which job, driver + contact state.
-    BookingModel.find({ scheduledStart: { $gte: dayStart, $lt: dayEnd }, status: { $nin: ["cancelled", "rejected"] } })
+    BookingModel.find({ scheduledStart: { $gte: dayStart, $lt: dayEnd }, status: { $nin: ["cancelled", "rejected"] }, archivedAt: null })
       .sort({ scheduledStart: 1 }).limit(200)
       .select("bookingNumber status scheduledStart customerSnapshot pickup driverId contactLog").lean(),
     // Low ratings (1-2 stars, last 7 days) alert the owner.
@@ -210,6 +210,11 @@ const listQuery = z.object({
     .transform((v) => (v === undefined ? undefined : v === "true")),
   /** Free-text dispatch search: booking number, customer name/phone, driver name/code. */
   q: z.string().trim().max(80).optional(),
+  /** Housekeeping: archived bookings are hidden unless explicitly requested. */
+  archived: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   page: z.coerce.number().int().min(1).default(1),
 });
@@ -228,6 +233,8 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
   const filter: Record<string, unknown> = {};
   if (q.status) filter.status = q.status;
   else if (q.openOnly) filter.status = { $nin: TERMINAL_STATUSES };
+  // Default view hides archived rows; `archived=true` shows only those.
+  filter.archivedAt = q.archived ? { $ne: null } : null;
   if (q.bookingNumber) filter.bookingNumber = q.bookingNumber.toUpperCase();
   if (q.from || q.to) filter.scheduledStart = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lt: q.to } : {}) };
   if (q.customerPhone) filter["customerSnapshot.phone"] = { $regex: q.customerPhone.replace(/\D/g, "") + "$" };
@@ -253,7 +260,7 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
       .sort({ scheduledStart: 1 })
       .skip((q.page - 1) * q.limit)
       .limit(q.limit)
-      .select("bookingNumber status serviceType customerSnapshot scheduledStart scheduledEnd driverId fareEstimate finalFare source createdAt version")
+      .select("bookingNumber status serviceType customerSnapshot scheduledStart scheduledEnd driverId fareEstimate finalFare source createdAt version archivedAt")
       .lean(),
     BookingModel.countDocuments(filter),
   ]);
@@ -444,6 +451,9 @@ function adminBookingView(b: Record<string, any>, opts: { maskPhone?: boolean } 
     couponCode: b.couponCode ?? null,
     source: (b as Record<string, unknown>).source ?? "website",
     createdAt: b.createdAt,
+    archivedAt: b.archivedAt ?? null,
+    archivedBy: b.archivedBy ? String(b.archivedBy) : null,
+    archiveReason: b.archiveReason ?? null,
   };
 }
 
@@ -466,6 +476,7 @@ function adminBookingSummary(b: Record<string, any>, opts: { maskPhone?: boolean
     source: b.source ?? "website",
     createdAt: b.createdAt,
     version: b.version,
+    archivedAt: b.archivedAt ?? null,
   };
 }
 
@@ -642,6 +653,142 @@ adminRouter.patch("/bookings/:id/status", requirePermission("bookings:status"), 
       cancelNote: event === "cancelled" && body.refundAmount ? `A refund of ₹${body.refundAmount} has been recorded.` : undefined,
     }).catch(() => {});
   }
+});
+
+// ---------- Archive / restore / delete (staff housekeeping) ----------
+const archiveSchema = z.object({
+  reason: z.string().trim().max(300).optional(),
+  /** Required: stale views must reload instead of silently overwriting. */
+  expectedVersion: z.number().int(),
+});
+
+/**
+ * Archiving hides a booking from staff lists, queues and the dashboard without
+ * touching the record. It is reversible, and the customer's own booking
+ * history keeps showing it — this is housekeeping, not a cancellation.
+ */
+adminRouter.patch("/bookings/:id/archive", requirePermission("bookings:archive"), validate(archiveSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof archiveSchema>;
+  const b = await BookingModel.findById(idParam(req));
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  if (body.expectedVersion !== b.version) {
+    throw new AppError(409, "CONFLICT", "Booking was changed by someone else. Reload and try again.");
+  }
+  if (b.archivedAt) throw new AppError(409, "CONFLICT", "This booking is already archived.");
+
+  b.archivedAt = new Date();
+  b.archivedBy = new Types.ObjectId(req.principal!.id);
+  b.archiveReason = body.reason;
+  b.version += 1;
+  await b.save();
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "booking.archive",
+    entityType: "Booking",
+    entityId: String(b._id),
+    before: { archived: false },
+    after: { archived: true },
+    reason: body.reason,
+    requestId: req.requestId,
+  });
+  res.json({ id: String(b._id), archivedAt: b.archivedAt, version: b.version });
+});
+
+const restoreSchema = z.object({
+  expectedVersion: z.number().int(),
+});
+
+adminRouter.patch("/bookings/:id/restore", requirePermission("bookings:archive"), validate(restoreSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof restoreSchema>;
+  const b = await BookingModel.findById(idParam(req));
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  if (body.expectedVersion !== b.version) {
+    throw new AppError(409, "CONFLICT", "Booking was changed by someone else. Reload and try again.");
+  }
+  if (!b.archivedAt) throw new AppError(409, "CONFLICT", "This booking is not archived.");
+
+  const archivedAt = b.archivedAt;
+  b.archivedAt = null;
+  b.archivedBy = null;
+  b.archiveReason = undefined;
+  b.version += 1;
+  await b.save();
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "booking.restore",
+    entityType: "Booking",
+    entityId: String(b._id),
+    before: { archived: true, archivedAt },
+    after: { archived: false },
+    requestId: req.requestId,
+  });
+  res.json({ id: String(b._id), archivedAt: null, version: b.version });
+});
+
+/**
+ * Permanent deletion. Deliberately narrow: owner only, and only for closures
+ * that never touched money (no fare, no payment row). Anything else must be
+ * archived so the financial trail stays intact.
+ */
+const DELETABLE_BOOKING_STATUSES = ["cancelled", "rejected"] as const;
+
+const deleteBookingSchema = z.object({
+  /** Typed by the operator: must match the booking number exactly. */
+  confirmBookingNumber: z.string().trim().min(1).max(20),
+  reason: z.string().trim().min(5).max(300),
+  expectedVersion: z.number().int(),
+});
+
+adminRouter.delete("/bookings/:id", requirePermission("bookings:delete"), validate(deleteBookingSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof deleteBookingSchema>;
+  const b = await BookingModel.findById(idParam(req));
+  if (!b) throw new AppError(404, "NOT_FOUND", "Booking not found.");
+  if (body.expectedVersion !== b.version) {
+    throw new AppError(409, "CONFLICT", "Booking was changed by someone else. Reload and try again.");
+  }
+  if (body.confirmBookingNumber.toUpperCase() !== b.bookingNumber) {
+    throw new AppError(409, "CONFLICT", "The booking number does not match.", { confirmBookingNumber: "Type the booking number exactly." });
+  }
+  if (!(DELETABLE_BOOKING_STATUSES as readonly string[]).includes(b.status)) {
+    throw new AppError(409, "CONFLICT", "Only cancelled or rejected bookings can be deleted. Archive this one instead.");
+  }
+  if (b.finalFare != null) {
+    throw new AppError(409, "CONFLICT", "A fare is recorded on this booking, so it must stay on record. Archive it instead.");
+  }
+  if (await PaymentModel.exists({ bookingId: b._id })) {
+    throw new AppError(409, "CONFLICT", "Payments are recorded on this booking, so it must stay on record. Archive it instead.");
+  }
+
+  // Audit keeps the useful facts so the gap is explainable later — no name,
+  // phone, address or other customer PII.
+  const snapshot = {
+    bookingNumber: b.bookingNumber,
+    customerId: String(b.customerId),
+    serviceType: b.serviceType,
+    status: b.status,
+    total: b.finalFare ?? b.fareEstimate?.total ?? null,
+    scheduledStart: b.scheduledStart,
+  };
+  const bookingId = String(b._id);
+  await BookingModel.deleteOne({ _id: b._id });
+  // Alert history for a booking that no longer exists has no owner; drop it.
+  await NotificationModel.deleteMany({ bookingId: b._id });
+  await audit({
+    actorId: req.principal!.id,
+    actorKind: "staff",
+    actorRole: req.principal!.role,
+    action: "booking.delete",
+    entityType: "Booking",
+    entityId: bookingId,
+    before: snapshot,
+    reason: body.reason,
+    requestId: req.requestId,
+  });
+  res.json({ id: bookingId, deleted: true });
 });
 
 const fareSchema = z.object({
