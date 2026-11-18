@@ -10,6 +10,14 @@ export function newBookingNumber(): string {
   return `DRV-${out}`;
 }
 
+/** Monthly plan reference, e.g. MP-K7Q2M9XH. Same unambiguous alphabet. */
+export function newMonthlyPlanNumber(): string {
+  const bytes = randomBytes(8);
+  let out = "";
+  for (let i = 0; i < 8; i++) out += ALPHABET[bytes[i] % ALPHABET.length];
+  return `MP-${out}`;
+}
+
 /** 6-digit numeric OTP. */
 export function newOtp(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, "0");
