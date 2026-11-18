@@ -306,6 +306,105 @@ bookingSchema.index({ driverId: 1, scheduledStart: 1 });
 bookingSchema.index({ archivedAt: 1, scheduledStart: 1 });
 export const BookingModel = model("Booking", bookingSchema);
 
+// ---------- Monthly plans (monthly_office commute, separate from daily bookings) ----------
+export const MONTHLY_PLAN_STATUSES = ["active", "paused", "ended"] as const;
+export type MonthlyPlanStatus = (typeof MONTHLY_PLAN_STATUSES)[number];
+
+const monthlyPlanSchema = new Schema(
+  {
+    planNumber: { type: String, required: true, unique: true },
+    /** The monthly_office booking this plan was carried over from, when there is one. */
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking", unique: true, sparse: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
+    /** Kept so the plan still renders if the customer record is later removed. */
+    customerSnapshot: {
+      name: { type: String, required: true },
+      phone: { type: String, required: true },
+    },
+    driverId: { type: Schema.Types.ObjectId, ref: "Driver", index: true },
+    serviceType: { type: String, default: "monthly_office" },
+    /** IST calendar dates (midnight IST). */
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    /** 0 = Sunday … 6 = Saturday. */
+    workingDays: [{ type: Number, min: 0, max: 6 }],
+    /** "HH:mm" IST. */
+    pickupTime: { type: String, required: true, maxlength: 5 },
+    dropTime: { type: String, required: true, maxlength: 5 },
+    pickupAddress: { type: String, required: true, maxlength: 300 },
+    dropAddress: { type: String, maxlength: 300 },
+    notes: { type: String, maxlength: 500 },
+    status: { type: String, enum: MONTHLY_PLAN_STATUSES, default: "active" },
+    /**
+     * Paused windows in IST date keys, half-open [from, to). `to: null` means
+     * the plan is still paused. A day is paused when a window covers it, so
+     * resuming never rewrites history.
+     */
+    pauses: [
+      {
+        from: { type: String, required: true },
+        to: { type: String, default: null },
+        reason: { type: String, maxlength: 300 },
+        pausedAt: { type: Date, default: Date.now },
+        pausedBy: { type: Schema.Types.ObjectId },
+        resumedAt: { type: Date },
+        resumedBy: { type: Schema.Types.ObjectId },
+        _id: false,
+      },
+    ],
+    pausedAt: { type: Date },
+    endedAt: { type: Date },
+    endReason: { type: String, maxlength: 300 },
+    endedBy: { type: Schema.Types.ObjectId },
+    createdBy: { type: Schema.Types.ObjectId, ref: "Staff" },
+    version: { type: Number, default: 0 },
+  },
+  opts,
+);
+monthlyPlanSchema.index({ status: 1, startDate: 1 });
+monthlyPlanSchema.index({ driverId: 1, status: 1 });
+export const MonthlyPlanModel = model("MonthlyPlan", monthlyPlanSchema);
+
+// ---------- Monthly attendance (one row per plan per IST day) ----------
+export const MONTHLY_ATTENDANCE_OUTCOMES = [
+  "pending",
+  "present",
+  "customer_absent",
+  "driver_absent",
+  "holiday",
+] as const;
+export type MonthlyAttendanceOutcome = (typeof MONTHLY_ATTENDANCE_OUTCOMES)[number];
+
+const attendanceSlotSchema = new Schema(
+  {
+    status: { type: String, enum: MONTHLY_ATTENDANCE_OUTCOMES, default: "pending" },
+    note: { type: String, maxlength: 300 },
+    markedAt: { type: Date },
+    markedByKind: { type: String, enum: ["staff", "driver", "system"] },
+    markedById: { type: Schema.Types.ObjectId },
+    markedByName: { type: String, maxlength: 120 },
+  },
+  { _id: false },
+);
+
+const monthlyAttendanceSchema = new Schema(
+  {
+    planId: { type: Schema.Types.ObjectId, ref: "MonthlyPlan", required: true, index: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true },
+    driverId: { type: Schema.Types.ObjectId, ref: "Driver" },
+    /** IST calendar day, "YYYY-MM-DD". One row per plan per day. */
+    dateKey: { type: String, required: true },
+    /** IST midnight, for range queries and sorting. */
+    date: { type: Date, required: true },
+    pickup: { type: attendanceSlotSchema, default: () => ({ status: "pending" }) },
+    drop: { type: attendanceSlotSchema, default: () => ({ status: "pending" }) },
+  },
+  opts,
+);
+monthlyAttendanceSchema.index({ planId: 1, dateKey: 1 }, { unique: true });
+monthlyAttendanceSchema.index({ driverId: 1, dateKey: 1 });
+export const MonthlyAttendanceModel = model("MonthlyAttendance", monthlyAttendanceSchema);
+
 // ---------- Payments (ledger) ----------
 const paymentSchema = new Schema(
   {

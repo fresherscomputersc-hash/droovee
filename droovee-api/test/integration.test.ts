@@ -1064,3 +1064,248 @@ test("delete needs the owner, the typed booking number and a clean money trail",
   assert.ok(!JSON.stringify(row).includes("Delete Tester"), "audit must not keep the customer name");
   assert.ok(!JSON.stringify(row).includes("9812300202"), "audit must not keep the customer phone");
 });
+
+
+test("monthly plans: carry-over, staff attendance, customer read-only view and driver one-tap", async () => {
+  const { todayKey, addDaysToKey } = await import("../src/services/monthly");
+  const owner = await staffLogin("owner@droovee.test");
+  const custToken = await registerCustomer("9812300301", "Monthly Tester");
+
+  // A monthly booking created by the customer, in a future window so the test
+  // dates stay deterministic.
+  const made = await call("POST", "/api/v1/bookings", custToken, {
+    serviceType: "monthly_office",
+    immediate: false,
+    pickup: { address: "Patia Square, Bhubaneswar" },
+    destination: { address: "Infocity, Bhubaneswar" },
+    scheduledStart: "2031-05-05T09:00:00+05:30",
+    durationHours: 10,
+    carModel: "Maruti Swift",
+    transmission: "manual",
+    instructions: "Monthly office commute",
+    recurrence: {
+      days: [0, 1, 2, 3, 4, 5, 6],
+      startTime: "09:00",
+      endTime: "19:00",
+      startDate: "2031-05-05",
+      endDate: "2031-05-11",
+    },
+  });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+
+  // The existing monthly booking is carried over the first time staff open the list.
+  const list = await call("GET", "/api/v1/admin/monthly-plans", owner);
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+  const plan = list.body.items.find((p: Json) => p.customer.name === "Monthly Tester");
+  assert.ok(plan, "the monthly booking must appear as a plan automatically");
+  assert.equal(plan.startDate, "2031-05-05");
+  assert.equal(plan.endDate, "2031-05-11");
+  assert.equal(plan.pickupTime, "09:00");
+  assert.equal(plan.dropTime, "19:00");
+  assert.equal(plan.driver, null);
+
+  // A second read does not duplicate the plan.
+  const listAgain = await call("GET", "/api/v1/admin/monthly-plans", owner);
+  const matches = listAgain.body.items.filter((p: Json) => p.customer.name === "Monthly Tester");
+  assert.equal(matches.length, 1, "carry-over must be idempotent");
+
+  const d1 = await models.DriverModel.findOne({ employeeCode: "D-001" }).lean();
+  assert.ok(d1);
+
+  // Assign the driver (version-guarded).
+  const patched = await call("PATCH", `/api/v1/admin/monthly-plans/${plan.id}`, owner, {
+    driverId: String(d1._id),
+    expectedVersion: plan.version,
+  });
+  assert.equal(patched.status, 200, JSON.stringify(patched.body));
+  assert.equal(patched.body.driver.employeeCode, "D-001");
+
+  // Stale writes are refused.
+  const stale = await call("PATCH", `/api/v1/admin/monthly-plans/${plan.id}`, owner, {
+    pickupTime: "08:00",
+    expectedVersion: plan.version,
+  });
+  assert.equal(stale.status, 409, JSON.stringify(stale.body));
+
+  const detailPath = `/api/v1/admin/monthly-plans/${plan.id}?from=2031-05-05&to=2031-05-11`;
+  const detail = await call("GET", detailPath, owner);
+  assert.equal(detail.status, 200, JSON.stringify(detail.body));
+  assert.equal(detail.body.days.length, 7);
+  assert.equal(detail.body.plan.summary.expectedDays, 7);
+  assert.equal(detail.body.plan.summary.unmarkedDays, 7);
+  assert.ok(detail.body.days.every((d: Json) => d.state === "scheduled"));
+
+  // Mark one day, declare a holiday, then "mark all present" over a range.
+  const marked = await call("POST", `/api/v1/admin/monthly-plans/${plan.id}/attendance`, owner, {
+    dateKey: "2031-05-05",
+    pickup: "present",
+    drop: "present",
+    note: "On time",
+  });
+  assert.equal(marked.status, 200, JSON.stringify(marked.body));
+  assert.equal(marked.body.day.pickup.status, "present");
+  assert.equal(marked.body.day.pickup.markedByKind, "staff");
+
+  const holiday = await call("POST", `/api/v1/admin/monthly-plans/${plan.id}/attendance`, owner, {
+    dateKey: "2031-05-06",
+    pickup: "holiday",
+    drop: "holiday",
+  });
+  assert.equal(holiday.status, 200, JSON.stringify(holiday.body));
+
+  const bulk = await call("POST", `/api/v1/admin/monthly-plans/${plan.id}/attendance/bulk`, owner, {
+    from: "2031-05-07",
+    to: "2031-05-09",
+  });
+  assert.equal(bulk.status, 200, JSON.stringify(bulk.body));
+  assert.equal(bulk.body.marked, 3);
+
+  // Bulk marking never overwrites an explicit mark unless asked.
+  const bulkAgain = await call("POST", `/api/v1/admin/monthly-plans/${plan.id}/attendance/bulk`, owner, {
+    from: "2031-05-07",
+    to: "2031-05-09",
+  });
+  assert.equal(bulkAgain.status, 200);
+  assert.equal(bulkAgain.body.marked, 0);
+  assert.equal(bulkAgain.body.skipped, 3);
+
+  // Dates outside the plan are refused.
+  const outside = await call("POST", `/api/v1/admin/monthly-plans/${plan.id}/attendance`, owner, {
+    dateKey: "2031-04-01",
+    pickup: "present",
+  });
+  assert.equal(outside.status, 400, JSON.stringify(outside.body));
+
+  const after = await call("GET", detailPath, owner);
+  assert.equal(after.status, 200);
+  assert.deepEqual(
+    {
+      expectedDays: after.body.plan.summary.expectedDays,
+      daysAttended: after.body.plan.summary.daysAttended,
+      dropPresent: after.body.plan.summary.dropPresent,
+      holidays: after.body.plan.summary.holidays,
+      absences: after.body.plan.summary.absences,
+    },
+    { expectedDays: 6, daysAttended: 4, dropPresent: 4, holidays: 1, absences: 0 },
+  );
+
+  // Customer view: read-only, sees attendance, the driver and the next pickup.
+  const mine = await call("GET", "/api/v1/bookings/monthly", custToken);
+  assert.equal(mine.status, 200, JSON.stringify(mine.body));
+  const minePlan = mine.body.items.find((p: Json) => p.id === plan.id);
+  assert.ok(minePlan, "the customer sees their monthly plan");
+  assert.equal(minePlan.driver.name, "Ramesh");
+  assert.equal(minePlan.summary.daysAttended, 4);
+  const holidayDay = minePlan.days.find((d: Json) => d.dateKey === "2031-05-06");
+  assert.equal(holidayDay.pickup.status, "holiday");
+  assert.deepEqual(minePlan.nextPickup, { dateKey: "2031-05-10", time: "09:00" });
+
+  const customerWrite = await call("PATCH", `/api/v1/admin/monthly-plans/${plan.id}`, custToken, { expectedVersion: 1 });
+  assert.equal(customerWrite.status, 403, "customers cannot edit attendance");
+
+  // A plan running today, so the driver portal has something to tap.
+  const customer = await models.CustomerModel.findOne({ phone: "+919812300301" }).lean();
+  assert.ok(customer);
+  const today = todayKey();
+  const live = await call("POST", "/api/v1/admin/monthly-plans", owner, {
+    customerId: String(customer!._id),
+    driverId: String(d1._id),
+    startDate: addDaysToKey(today, -1),
+    endDate: addDaysToKey(today, 10),
+    workingDays: [0, 1, 2, 3, 4, 5, 6],
+    pickupTime: "08:30",
+    dropTime: "18:30",
+    pickupAddress: "Patia Square, Bhubaneswar",
+    dropAddress: "Infocity, Bhubaneswar",
+  });
+  assert.equal(live.status, 201, JSON.stringify(live.body));
+  const liveId = live.body.id as string;
+
+  const bcrypt = (await import("bcryptjs")).default;
+  const pin = "135790";
+  const hash = await bcrypt.hash(pin, 4);
+  await models.DriverModel.updateOne(
+    { employeeCode: "D-001" },
+    { $set: { portalPinHash: hash, portalPinSetAt: new Date() } },
+  );
+  await models.DriverModel.updateOne(
+    { employeeCode: "D-003" },
+    { $set: { portalPinHash: hash, portalPinSetAt: new Date() } },
+  );
+  const c1 = await driverLogin("D-001", pin);
+  const c3 = await driverLogin("D-003", pin);
+
+  const todayView = await driverCall("GET", "/api/v1/driver/portal/monthly", c1);
+  assert.equal(todayView.status, 200, JSON.stringify(todayView.body));
+  const item = todayView.body.items.find((i: Json) => i.planId === liveId);
+  assert.ok(item, "the driver sees today's monthly pickup");
+  assert.equal(item.state, "scheduled");
+  assert.equal(item.pickup.status, "pending");
+
+  const tap = await driverCall("POST", `/api/v1/driver/portal/monthly/${liveId}/mark`, c1, {
+    slot: "pickup",
+    outcome: "completed",
+  });
+  assert.equal(tap.status, 200, JSON.stringify(tap.body));
+  assert.equal(tap.body.status, "present");
+
+  // Double-tap is idempotent, not a second attendance event.
+  const tapAgain = await driverCall("POST", `/api/v1/driver/portal/monthly/${liveId}/mark`, c1, {
+    slot: "pickup",
+    outcome: "completed",
+  });
+  assert.equal(tapAgain.status, 200);
+  assert.equal(tapAgain.body.unchanged, true);
+
+  const absent = await driverCall("POST", `/api/v1/driver/portal/monthly/${liveId}/mark`, c1, {
+    slot: "drop",
+    outcome: "customer_absent",
+  });
+  assert.equal(absent.status, 200);
+  assert.equal(absent.body.status, "customer_absent");
+
+  // Another driver cannot mark someone else's plan.
+  const otherDriver = await driverCall("POST", `/api/v1/driver/portal/monthly/${liveId}/mark`, c3, {
+    slot: "pickup",
+    outcome: "completed",
+  });
+  assert.equal(otherDriver.status, 404, JSON.stringify(otherDriver.body));
+
+  // Pause freezes attendance, resume reopens it.
+  const paused = await call("POST", `/api/v1/admin/monthly-plans/${liveId}/pause`, owner, {
+    reason: "Customer travelling",
+    expectedVersion: live.body.version,
+  });
+  assert.equal(paused.status, 200, JSON.stringify(paused.body));
+  assert.equal(paused.body.status, "paused");
+
+  const pausedMark = await call("POST", `/api/v1/admin/monthly-plans/${liveId}/attendance`, owner, {
+    dateKey: today,
+    drop: "present",
+  });
+  assert.equal(pausedMark.status, 409, JSON.stringify(pausedMark.body));
+
+  const resumed = await call("POST", `/api/v1/admin/monthly-plans/${liveId}/resume`, owner, {
+    expectedVersion: paused.body.version,
+  });
+  assert.equal(resumed.status, 200, JSON.stringify(resumed.body));
+  assert.equal(resumed.body.status, "active");
+
+  const ended = await call("POST", `/api/v1/admin/monthly-plans/${liveId}/end`, owner, {
+    reason: "Contract finished",
+    expectedVersion: resumed.body.version,
+  });
+  assert.equal(ended.status, 200, JSON.stringify(ended.body));
+  assert.equal(ended.body.status, "ended");
+
+  const endedMark = await call("POST", `/api/v1/admin/monthly-plans/${liveId}/attendance`, owner, {
+    dateKey: today,
+    pickup: "present",
+  });
+  assert.equal(endedMark.status, 409, JSON.stringify(endedMark.body));
+
+  // The attendance trail is audited for staff and driver marks.
+  const auditRows = await call("GET", "/api/v1/admin/audit-logs?action=monthly_attendance.driver_mark", owner);
+  assert.equal(auditRows.status, 200);
+  assert.ok(auditRows.body.items.some((a: Json) => a.entityId === `${liveId}:${today}`));
+});

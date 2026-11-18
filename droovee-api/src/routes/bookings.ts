@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Types } from "mongoose";
-import { BookingModel, CustomerModel, DriverModel } from "../models";
+import { BookingModel, CustomerModel, DriverModel, MonthlyAttendanceModel, MonthlyPlanModel } from "../models";
 import { authenticate, requireCustomer } from "../middleware/auth";
 import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
@@ -21,6 +21,21 @@ import { logNotification, notifyAdminNewBooking } from "../services/notify";
 import { ensureReferralCode, resolvePackage, resolveReferrer, recordReferral } from "../services/growth";
 import type { Pkg } from "../domain/settings";
 import { issueDriverSecrets } from "../services/assignment";
+import {
+  addDaysToKey,
+  attendanceDayView,
+  calendarKeys,
+  carryOverMonthlyBookings,
+  clampKey,
+  ensurePlanForBooking,
+  monthRange,
+  nextPickupKey,
+  planEndKey,
+  planStartKey,
+  planView,
+  summariseAttendance,
+  todayKey,
+} from "../services/monthly";
 
 export const bookingsRouter = Router();
 
@@ -260,6 +275,10 @@ bookingsRouter.post("/", authenticate, requireCustomer, bookingCreateLimiter(), 
   // so a slow/unreachable SMTP server can never fail the booking.
   notifyAdminNewBooking(booking._id as Types.ObjectId).catch(() => {});
 
+  // Monthly bookings get their plan immediately, so staff see it in the
+  // monthly workspace without waiting for the legacy carry-over scan.
+  ensurePlanForBooking(booking.toObject() as unknown as Record<string, any>).catch(() => {});
+
   res.status(201).json(customerView(booking.toObject(), null));
 });
 
@@ -352,6 +371,65 @@ bookingsRouter.get("/track", estimateLimiter(), validateQuery(trackQuery), async
   const view = customerView(b as unknown as Record<string, unknown>, await driverFor(b as { driverId?: unknown; status: string }));
   delete (view as Record<string, unknown>).shareToken;
   res.json(view);
+});
+
+/** Customer's read-only monthly view: attendance, upcoming days, driver and next pickup. */
+bookingsRouter.get("/monthly", authenticate, requireCustomer, async (req, res) => {
+  await carryOverMonthlyBookings();
+  const plans = (await MonthlyPlanModel.find({ customerId: req.principal!.id })
+    .sort({ startDate: -1 })
+    .limit(24)
+    .lean()) as unknown as Record<string, any>[];
+  if (plans.length === 0) {
+    res.json({ items: [], month: monthRange() });
+    return;
+  }
+
+  const month = monthRange();
+  const today = todayKey();
+  // Each plan gets its own anchor month: the current one when the plan is
+  // running now, otherwise the month it starts (or ended) in. That keeps a
+  // plan card meaningful year-round instead of showing an empty grid.
+  const anchors = plans.map((plan) => {
+    const start = planStartKey(plan);
+    const end = planEndKey(plan);
+    const anchor = today < start ? start : today > end ? end : today;
+    const gm = monthRange(anchor.slice(0, 7));
+    return { plan, gridMonth: gm, gridFrom: clampKey(gm.from, start, end), gridTo: clampKey(gm.to, start, end) };
+  });
+  // "Next pickup" looks up to 60 days ahead.
+  const horizon = addDaysToKey(today, 60);
+
+  const [rows, drivers] = await Promise.all([
+    MonthlyAttendanceModel.find({
+      $or: anchors.map(({ plan, gridMonth, gridTo }) => ({
+        planId: plan._id,
+        // Cover the plan's grid month and the forward "next pickup" window.
+        dateKey: { $gte: gridMonth.from, $lte: gridTo > horizon ? gridTo : horizon },
+      })),
+    }).lean(),
+    DriverModel.find({ _id: { $in: plans.map((p) => p.driverId).filter(Boolean) } })
+      .select("name phone employeeCode")
+      .lean(),
+  ]);
+  const driverById = new Map((drivers as unknown as Record<string, any>[]).map((d) => [String(d._id), d]));
+
+  const items = anchors.map(({ plan, gridMonth, gridFrom, gridTo }) => {
+    const planRows = (rows as unknown as Record<string, any>[]).filter((r) => String(r.planId) === String(plan._id));
+    const rowByKey = new Map(planRows.map((r) => [String(r.dateKey), r]));
+    const next = nextPickupKey(plan, planRows, today);
+    return {
+      ...planView(plan, {
+        driver: plan.driverId ? driverById.get(String(plan.driverId)) ?? null : null,
+        summary: summariseAttendance(plan, planRows, gridMonth.from, gridMonth.to),
+      }),
+      month: gridMonth,
+      days: calendarKeys(gridFrom, gridTo).map((key) => attendanceDayView(plan, key, rowByKey.get(key))),
+      nextPickup: next ? { dateKey: next, time: plan.pickupTime } : null,
+    };
+  });
+
+  res.json({ items, month });
 });
 
 /** Customer lists their own bookings only (FR-BOOK-04). */

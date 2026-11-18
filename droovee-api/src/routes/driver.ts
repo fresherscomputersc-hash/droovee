@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
-import { BookingModel, AvailabilityBlockModel } from "../models";
+import { BookingModel, AvailabilityBlockModel, MonthlyAttendanceModel, MonthlyPlanModel } from "../models";
 import { validate, validateQuery } from "../lib/validate";
 import { AppError } from "../lib/errors";
 import { audit } from "../lib/audit";
@@ -19,6 +19,16 @@ import { authenticateDriver } from "../middleware/auth";
 import { clearDriverCookie, setDriverCookie } from "../lib/cookies";
 import { config } from "../config";
 import { canTransition, BookingStatus, TERMINAL_STATUSES } from "../domain/status";
+import {
+  attendanceSlotView,
+  carryOverMonthlyBookings,
+  dateKeyToIstMidnight,
+  dayState,
+  planEndKey,
+  planStartKey,
+  planView,
+  todayKey,
+} from "../services/monthly";
 
 export const driverRouter = Router();
 driverRouter.use(driverLimiter());
@@ -599,4 +609,131 @@ driverRouter.post("/portal/jobs/:id/action", authenticateDriver, validate(portal
   }
 
   res.json({ success: true, status: b.status, tripEnded: Boolean(b.tripEndedByDriverAt) });
+});
+
+// ---------- Monthly plans (driver portal) ----------
+
+/** Today's monthly pickup/drop for the signed-in driver. */
+driverRouter.get("/portal/monthly", authenticateDriver, async (req, res) => {
+  await carryOverMonthlyBookings();
+  const key = todayKey();
+  const driverId = new Types.ObjectId(req.driver!.id);
+  const plans = (await MonthlyPlanModel.find({ driverId, status: { $ne: "ended" } })
+    .sort({ startDate: 1 })
+    .lean()) as unknown as Record<string, any>[];
+  const rows = (await MonthlyAttendanceModel.find({
+    planId: { $in: plans.map((p) => p._id) },
+    dateKey: key,
+  }).lean()) as unknown as Record<string, any>[];
+  const rowByPlan = new Map(rows.map((r) => [String(r.planId), r]));
+
+  const items = plans
+    .map((plan) => ({ plan, state: dayState(plan, key) }))
+    .filter(({ state }) => state === "scheduled" || state === "paused")
+    .map(({ plan, state }) => {
+      const row = rowByPlan.get(String(plan._id));
+      return {
+        planId: String(plan._id),
+        planNumber: plan.planNumber,
+        state,
+        customer: { name: plan.customerSnapshot?.name ?? "", phone: plan.customerSnapshot?.phone ?? "" },
+        pickupTime: plan.pickupTime,
+        dropTime: plan.dropTime,
+        pickupAddress: plan.pickupAddress,
+        dropAddress: plan.dropAddress ?? null,
+        pickup: attendanceSlotView(row?.pickup),
+        drop: attendanceSlotView(row?.drop),
+      };
+    });
+
+  res.json({ dateKey: key, items });
+});
+
+const monthlyMarkSchema = z.object({
+  slot: z.enum(["pickup", "drop"]),
+  outcome: z.enum(["completed", "customer_absent"]),
+  note: z.string().trim().max(300).optional(),
+});
+
+/**
+ * One-tap attendance from the driver portal. Drivers can only mark today and
+ * only their own plan; "completed" records a present leg, and
+ * "customer_absent" records the customer's absence.
+ */
+driverRouter.post("/portal/monthly/:id/mark", authenticateDriver, validate(monthlyMarkSchema), async (req, res) => {
+  const id = String(req.params.id);
+  if (!Types.ObjectId.isValid(id)) throw new AppError(404, "NOT_FOUND", "Monthly plan not found.");
+  const body = req.body as z.infer<typeof monthlyMarkSchema>;
+  const plan = (await MonthlyPlanModel.findOne({
+    _id: new Types.ObjectId(id),
+    driverId: new Types.ObjectId(req.driver!.id),
+  }).lean()) as unknown as Record<string, any> | null;
+  if (!plan) throw new AppError(404, "NOT_FOUND", "Monthly plan not found.");
+
+  const key = todayKey();
+  if (plan.status === "ended" || key > planEndKey(plan) || key < planStartKey(plan)) {
+    throw new AppError(409, "CONFLICT", "This plan is not active today.");
+  }
+  if (dayState(plan, key) !== "scheduled") {
+    throw new AppError(409, "CONFLICT", "Today is not a working day for this plan.");
+  }
+
+  const target = body.outcome === "completed" ? "present" : "customer_absent";
+  await MonthlyAttendanceModel.updateOne(
+    { planId: plan._id, dateKey: key },
+    {
+      $setOnInsert: {
+        planId: plan._id,
+        customerId: plan.customerId,
+        driverId: plan.driverId,
+        dateKey: key,
+        date: dateKeyToIstMidnight(key),
+      },
+    },
+    { upsert: true },
+  );
+  const current = (await MonthlyAttendanceModel.findOne({ planId: plan._id, dateKey: key }).lean()) as unknown as Record<string, any> | null;
+  if ((current?.[body.slot]?.status ?? "pending") === target) {
+    // Idempotent: a double-tap is not an error and must not add noise.
+    res.json({ planId: String(plan._id), dateKey: key, slot: body.slot, status: target, unchanged: true });
+    return;
+  }
+
+  const updated = await MonthlyAttendanceModel.findOneAndUpdate(
+    { planId: plan._id, dateKey: key },
+    {
+      $set: {
+        [`${body.slot}.status`]: target,
+        [`${body.slot}.markedAt`]: new Date(),
+        [`${body.slot}.markedByKind`]: "driver",
+        [`${body.slot}.markedById`]: new Types.ObjectId(req.driver!.id),
+        [`${body.slot}.markedByName`]: req.driver!.name,
+        ...(body.note ? { [`${body.slot}.note`]: body.note } : {}),
+      },
+    },
+    { returnDocument: "after" },
+  ).lean();
+
+  await audit({
+    actorId: req.driver!.id,
+    actorKind: "system",
+    action: "monthly_attendance.driver_mark",
+    entityType: "MonthlyAttendance",
+    entityId: `${plan._id}:${key}`,
+    before: { [body.slot]: current?.[body.slot]?.status ?? "pending" },
+    after: { [body.slot]: target, outcome: body.outcome },
+    reason: "driver portal",
+  });
+
+  res.json({
+    planId: String(plan._id),
+    dateKey: key,
+    slot: body.slot,
+    status: target,
+    day: {
+      dateKey: key,
+      pickup: body.slot === "pickup" ? { status: target } : attendanceSlotView((updated as Record<string, any>)?.pickup),
+      drop: body.slot === "drop" ? { status: target } : attendanceSlotView((updated as Record<string, any>)?.drop),
+    },
+  });
 });

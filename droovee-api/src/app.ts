@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth";
 import { pricingRouter, SERVICE_TYPES } from "./routes/pricing";
 import { bookingsRouter } from "./routes/bookings";
 import { adminRouter } from "./routes/admin";
+import { monthlyRouter } from "./routes/monthly";
 import { driverRouter } from "./routes/driver";
 import { ratingsRouter } from "./routes/ratings";
 import { errorHandler, AppError } from "./lib/errors";
@@ -89,6 +90,8 @@ export function createApp() {
   });
 
   app.use("/api/v1/bookings", bookingsRouter);
+  // More specific mount first: /admin/monthly-plans must win over /admin.
+  app.use("/api/v1/admin/monthly-plans", adminLimiter(), monthlyRouter);
   app.use("/api/v1/admin", adminLimiter(), adminRouter);
   app.use("/api/v1/driver", driverRouter);
   app.use("/api/v1/ratings", ratingsRouter);
