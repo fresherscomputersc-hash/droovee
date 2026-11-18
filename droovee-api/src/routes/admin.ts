@@ -257,7 +257,9 @@ adminRouter.get("/bookings", requirePermission("bookings:read"), validateQuery(l
   }
   const [items, total] = await Promise.all([
     BookingModel.find(filter)
-      .sort({ scheduledStart: 1 })
+      // Newest booking first, always: a booking that just came in must be at
+      // the top of page 1, not buried under next week's schedule.
+      .sort({ createdAt: -1, _id: -1 })
       .skip((q.page - 1) * q.limit)
       .limit(q.limit)
       .select("bookingNumber status serviceType customerSnapshot scheduledStart scheduledEnd driverId fareEstimate finalFare source createdAt version archivedAt")
